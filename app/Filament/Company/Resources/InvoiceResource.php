@@ -19,21 +19,25 @@ use Filament\Tables\Table;
 use App\Models\InvoiceItem;
 use App\Models\ProductUnit;
 use Filament\Support\RawJs;
+use App\Models\ProductCategory;
 use Filament\Resources\Resource;
 use Filament\Forms\Components\Grid;
 use Filament\Tables\Actions\Action;
 use Illuminate\Support\Facades\Log;
 use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Fieldset;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rules\Unique;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Actions\ExportAction;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Placeholder;
 use App\Filament\Exports\InvoiceItemExporter;
 use Filament\Actions\Exports\Enums\ExportFormat;
+use CodeWithDennis\FilamentSelectTree\SelectTree;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Forms\Components\Actions\Action as Act;
 use App\Filament\Company\Resources\InvoiceResource\Pages;
@@ -270,6 +274,188 @@ class InvoiceResource extends Resource
                                     ->searchPrompt('تایپ کنید ...')
                                     ->noSearchResultsMessage('بدون نتیجه!')
                                     ->reactive()
+                                    ->suffixAction(
+                                        Act::make('add_product')
+                                            ->label('افزودن محصول')
+                                            ->icon('heroicon-o-plus')
+                                            ->modalHeading('ایجاد محصول جدید')
+                                            ->action(function (array $data, Set $set, $livewire) {
+                                                // ایجاد محصول جدید
+                                                $product = Product::create([
+                                                    'name' => $data['name'],
+                                                    'barcode' => $data['barcode'],
+                                                    'selling_price' => (float) str_replace(',', '', $data['selling_price']),
+                                                    'purchase_price' => (float) str_replace(',', '', $data['purchase_price']),
+                                                    'minimum_order' => $data['minimum_order'],
+                                                    'lead_time' => $data['lead_time'],
+                                                    'reorder_point' => $data['reorder_point'],
+                                                    'sales_tax' => $data['sales_tax'],
+                                                    'purchase_tax' => $data['purchase_tax'],
+                                                    'type' => $data['type'],
+                                                    'inventory' => $data['inventory'],
+                                                    'product_unit_id' => $data['product_unit_id'],
+                                                    'tax_id' => $data['tax_id'],
+                                                    'product_category_id' => $data['product_category_id'],
+                                                    'company_id' => auth()->user('company')->id, // فرض بر این است که شرکت از کاربر لاگین شده می‌آید
+                                                ]);
+                                    
+                                                // مدیریت تصویر (اگر وجود داشته باشد)
+                                                if (!empty($data['image'])) {
+                                                    $product->update(['image' => $data['image']]);
+                                                }
+                                    
+                                                // مدیریت انبار (اگر انتخاب شده باشد)
+                                                if (!empty($data['selected_store_id']) && $data['inventory'] > 0) {
+                                                    $product->stores()->attach($data['selected_store_id'], ['quantity' => $data['inventory']]);
+                                                }
+                                    
+                                                // تنظیم مقدار سلکت‌باکس برای محصول جدید
+                                                $set('product_id', $product->id); // فرض می‌کنیم نام فیلد سلکت product_id است
+                                    
+                                                // ارسال رویداد برای رفرش گزینه‌ها
+                                                $livewire->dispatch('refresh-product-options');
+                                            })
+                                            ->form([
+                                                FileUpload::make('image')
+                                                    ->label('تصویر')
+                                                    ->disk('public')
+                                                    ->directory('products/image')
+                                                    ->visibility('private')
+                                                    ->deleteUploadedFileUsing(function ($file) {
+                                                        $imagePath = env('APP_ROOT') . '/upload/' . $file;
+                                                        if (file_exists($imagePath)) {
+                                                            unlink($imagePath);
+                                                        }
+                                                    })
+                                                    ->columnSpanFull(),
+                                    
+                                                Forms\Components\TextInput::make('name')
+                                                    ->label('نام محصول')
+                                                    ->required(),
+                                    
+                                                Forms\Components\TagsInput::make('barcode')
+                                                    ->label('بارکد'),
+                                    
+                                                Forms\Components\TextInput::make('selling_price')
+                                                    ->label('قیمت فروش')
+                                                    ->mask(RawJs::make(<<<'JS'
+                                                        $money($input)
+                                                    JS))
+                                                    ->dehydrateStateUsing(function ($state) {
+                                                        return (float) str_replace(',', '', $state);
+                                                    })
+                                                    ->postfix('ریال'),
+                                    
+                                                Forms\Components\TextInput::make('purchase_price')
+                                                    ->label('قیمت خرید')
+                                                    ->mask(RawJs::make(<<<'JS'
+                                                        $money($input)
+                                                    JS))
+                                                    ->dehydrateStateUsing(function ($state) {
+                                                        return (float) str_replace(',', '', $state);
+                                                    })
+                                                    ->postfix('ریال'),
+                                    
+                                                Forms\Components\TextInput::make('minimum_order')
+                                                    ->label('حداقل سفارش')
+                                                    ->default(1)
+                                                    ->numeric()
+                                                    ->minValue(1),
+                                    
+                                                Forms\Components\TextInput::make('lead_time')
+                                                    ->label('زمان انتظار')
+                                                    ->default(1)
+                                                    ->numeric()
+                                                    ->minValue(1)
+                                                    ->postfix('روز'),
+                                    
+                                                Forms\Components\TextInput::make('reorder_point')
+                                                    ->label('نقطه سفارش')
+                                                    ->minValue(1)
+                                                    ->default(1)
+                                                    ->numeric(),
+                                    
+                                                Forms\Components\TextInput::make('sales_tax')
+                                                    ->label('مالیات فروش')
+                                                    ->default(0)
+                                                    ->numeric()
+                                                    ->minValue(0)
+                                                    ->postfix('درصد'),
+                                    
+                                                Forms\Components\TextInput::make('purchase_tax')
+                                                    ->label('مالیات خرید')
+                                                    ->default(0)
+                                                    ->numeric()
+                                                    ->minValue(0)
+                                                    ->postfix('درصد'),
+                                    
+                                                Forms\Components\Select::make('type')
+                                                    ->label('نوع')
+                                                    ->options([
+                                                        'Goods' => 'کالا',
+                                                        'Services' => 'خدمات',
+                                                    ])
+                                                    ->required(),
+                                    
+                                                TextInput::make('inventory')
+                                                    ->label('موجودی اولیه')
+                                                    ->numeric()
+                                                    ->default(0)
+                                                    ->minValue(0)
+                                                    ->reactive()
+                                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                                        $defaultStore = \App\Models\Store::where('is_default', true)->first();
+                                                        $storesExist = \App\Models\Store::exists();
+                                    
+                                                        if ($state > 0 && !$defaultStore && $storesExist) {
+                                                            $set('show_store_select', true);
+                                                        } else {
+                                                            $set('show_store_select', false);
+                                                        }
+                                                    }),
+                                    
+                                                Forms\Components\Select::make('selected_store_id')
+                                                    ->label('انبار')
+                                                    ->options(fn() => \App\Models\Store::all()->pluck('title', 'id'))
+                                                    ->visible(fn($get) => $get('show_store_select'))
+                                                    ->required(fn($get) => $get('show_store_select')),
+                                    
+                                                Forms\Components\Select::make('product_unit_id')
+                                                    ->label('واحد شمارش')
+                                                    ->options(ProductUnit::all()->pluck('name','id'))
+                                                    ->required(),
+                                    
+                                                Forms\Components\Select::make('tax_id')
+                                                 ->options(fn() => \App\Models\Tax::all()->pluck('title', 'id'))
+                                                    ->label('نوع مالیات'),
+                                    
+                                                    Forms\Components\Select::make('product_category_id')
+                                                    ->required()
+                                                    ->label('دسته پدر')
+                                                    ->options(function () {
+                                                        $categories = ProductCategory::all();
+                                                        $options = [];
+                                
+                                                        $buildOptions = function ($categories, $parentId = null, $prefix = '') use (&$buildOptions, &$options) {
+                                                            $filtered = $categories->where('parent_id', $parentId);
+                                                            foreach ($filtered as $category) {
+                                                                $options[$category->id] = $prefix . $category->title;
+                                                                $buildOptions($categories, $category->id, $prefix . '— ');
+                                                            }
+                                                        };
+                                
+                                                        $buildOptions($categories);
+                                                        return $options;
+                                                    })
+                                                    ->placeholder('انتخاب دسته')
+                                                    ->searchable()
+                                                    ->preload()
+                                                
+                                            ])
+                                            ->after(function ($livewire) {
+                                                $livewire->dispatch('refreshForm'); // رفرش فرم بعد از اضافه کردن
+                                            })
+                                    )
                                     ->afterStateUpdated(function ($state, callable $set) {
                                         $product = Product::find($state);
                                         $set('unit', $product ? $product->product_unit_id : null);

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Filament\Company\Resources;
 
 use Closure;
@@ -18,6 +17,7 @@ use Filament\Tables\Table;
 use App\Models\InvoiceItem;
 use App\Models\ProductUnit;
 use Filament\Support\RawJs;
+use App\Models\ProductCategory;
 use Filament\Resources\Resource;
 use Filament\Forms\Components\Grid;
 use Filament\Tables\Actions\Action;
@@ -25,8 +25,10 @@ use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Fieldset;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rules\Unique;
-use Filament\Tables\Actions\ExportAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Forms\Components\FileUpload;
+use Filament\Tables\Actions\ExportAction;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Placeholder;
 use App\Filament\Exports\InvoiceItemExporter;
@@ -36,12 +38,12 @@ use App\Filament\Company\Resources\SaleInvoiceResource\Pages;
 
 class SaleInvoiceResource extends Resource
 {
-    protected static ?string $model = Invoice::class;
+    protected static ?string $model           = Invoice::class;
     protected static ?string $navigationLabel = 'فاکتور فروش';
-    protected static ?string $pluralLabel = 'فاکتورهای فروش';
-    protected static ?string $label = 'فاکتور فروش';
+    protected static ?string $pluralLabel     = 'فاکتورهای فروش';
+    protected static ?string $label           = 'فاکتور فروش';
     protected static ?string $navigationGroup = 'فروش';
-    protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
+    protected static ?string $navigationIcon  = 'heroicon-o-document-arrow-up';
 
     public static function getEloquentQuery(): Builder
     {
@@ -52,7 +54,7 @@ class SaleInvoiceResource extends Resource
 
     public static function form(Form $form): Form
     {
-        $customer = PersonType::where('title', 'مشتری')->first();
+        $customer = PersonType::where('title', 'تامین کننده')->first();
         return $form
             ->schema([
                 Grid::make(['default' => 3])
@@ -66,8 +68,8 @@ class SaleInvoiceResource extends Resource
                             ->live()
                             ->afterStateUpdated(function ($state, callable $set) {
                                 $invoice = Invoice::withTrashed()->latest()->first();
-                                $id = $invoice ? (++$invoice->id) : 1;
-                                $set('number', (int)$id);
+                                $id      = $invoice ? (++$invoice->id) : 1;
+                                $set('number', (int) $id);
                             }),
                         Radio::make('accounting_auto')
                             ->label('نحوه ورود شماره فاکتور')
@@ -76,8 +78,8 @@ class SaleInvoiceResource extends Resource
                             ->live()
                             ->afterStateUpdated(function ($state, callable $set) {
                                 $invoice = Invoice::withTrashed()->latest()->first();
-                                $id = $invoice ? (++$invoice->id) : 1;
-                                $state === 'auto' ? $set('number', (int)$id) : $set('number', '');
+                                $id      = $invoice ? (++$invoice->id) : 1;
+                                $state === 'auto' ? $set('number', (int) $id) : $set('number', '');
                             })
                             ->inline()
                             ->inlineLabel(false),
@@ -88,8 +90,8 @@ class SaleInvoiceResource extends Resource
                             ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                             ->default(function (Get $get) {
                                 $invoice = Invoice::withTrashed()->latest()->first();
-                                $id = $invoice ? (++$invoice->id) : 1;
-                                return ($get('accounting_auto') == 'auto') ? (int)$id : '';
+                                $id      = $invoice ? (++$invoice->id) : 1;
+                                return ($get('accounting_auto') == 'auto') ? (int) $id : '';
                             })
                             ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
                                 return $rule->where('deleted_at', null);
@@ -102,14 +104,13 @@ class SaleInvoiceResource extends Resource
                             ->default(now())
                             ->required(),
                         Forms\Components\TextInput::make('title')
-                            ->label('عنوان')
-                            ->required(),
+                            ->label('عنوان'),
                         Forms\Components\Select::make('person_id')
                             ->label('مشتری')
                             ->searchable(['firstname', 'lastname'])
                             ->relationship('person', 'fullname')
-                            ->options(Person::whereHas('types', fn($query) => $query->where('title', 'مشتری'))
-                                ->pluck('fullname', 'id'))
+                            ->options(Person::whereHas('types', fn($query) => $query->where('title', 'تامین کننده'))
+                                    ->pluck('fullname', 'id'))
                             ->required()
                             ->live()
                             ->suffixAction(
@@ -119,19 +120,19 @@ class SaleInvoiceResource extends Resource
                                     ->modalHeading('ایجاد مشتری جدید')
                                     ->action(function (array $data, Set $set, $livewire) {
                                         $person = Person::create([
-                                            'firstname' => $data['firstname'],
-                                            'lastname' => $data['lastname'],
+                                            'firstname'       => $data['firstname'],
+                                            'lastname'        => $data['lastname'],
                                             'accounting_auto' => $data['accounting_auto'],
                                             'accounting_code' => $data['accounting_code'],
-                                            'company_id' => auth()->user('company')->id,
+                                            'company_id'      => auth()->user('company')->id,
                                         ]);
                                         $person->types()->attach($data['types']);
                                         $account = Account::create([
-                                            'code' => $person->accounting_code,
-                                            'name' => 'حساب مشتری ' . $person->fullname,
-                                            'type' => 'asset',
+                                            'code'       => $person->accounting_code,
+                                            'name'       => 'حساب مشتری ' . $person->fullname,
+                                            'type'       => 'asset',
                                             'company_id' => auth()->user('company')->id,
-                                            'balance' => 0,
+                                            'balance'    => 0,
                                         ]);
                                         $person->update(['account_id' => $account->id]);
                                         $set('person_id', $person->id);
@@ -145,7 +146,7 @@ class SaleInvoiceResource extends Resource
                                             ->live()
                                             ->afterStateUpdated(function ($state, callable $set) {
                                                 $person = Person::withTrashed()->latest()->first();
-                                                $id = $person ? (++$person->id) : 1;
+                                                $id     = $person ? (++$person->id) : 1;
                                                 $state === 'auto' ? $set('accounting_code', $id) : $set('accounting_code', '');
                                             })
                                             ->inline()
@@ -156,8 +157,8 @@ class SaleInvoiceResource extends Resource
                                             ->required()
                                             ->default(function (Get $get) {
                                                 $person = Person::withTrashed()->latest()->first();
-                                                $id = $person ? (++$person->id) : 1;
-                                                return ($get('accounting_auto') == 'auto') ? (int)$id : '';
+                                                $id     = $person ? (++$person->id) : 1;
+                                                return ($get('accounting_auto') == 'auto') ? (int) $id : '';
                                             })
                                             ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                                             ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
@@ -198,10 +199,10 @@ class SaleInvoiceResource extends Resource
                                     ->modalHeading('ایجاد انبار جدید')
                                     ->action(function (array $data, Set $set, $livewire) {
                                         $store = Store::create([
-                                            'title' => $data['title'],
+                                            'title'        => $data['title'],
                                             'phone_number' => $data['phone_number'],
-                                            'address' => $data['address'],
-                                            'company_id' => auth()->user('company')->id,
+                                            'address'      => $data['address'],
+                                            'company_id'   => auth()->user('company')->id,
                                         ]);
                                         $set('store_id', $store->id);
                                         $livewire->dispatch('refresh-store-options');
@@ -228,7 +229,9 @@ class SaleInvoiceResource extends Resource
                     ]),
                 Forms\Components\Repeater::make('items')
                     ->label('')
-                    ->relationship()
+                    ->relationship('items', function ($query) {
+                        return $query->whereNull('deleted_at'); // فقط آیتم‌های فعال رو بارگذاری کن
+                    })
                     ->minItems(1)
                     ->defaultItems(1)
                     ->addable(true)
@@ -238,13 +241,203 @@ class SaleInvoiceResource extends Resource
                             ->schema([
                                 Forms\Components\Select::make('product_id')
                                     ->label('محصول')
-                                    
                                     ->options(Product::where('company_id', auth()->user('company')->id)->pluck('name', 'id'))
                                     ->required()
                                     ->reactive()
+                                    ->suffixAction(
+                                        Act::make('add_product')
+                                            ->label('افزودن محصول')
+                                            ->icon('heroicon-o-plus')
+                                            ->modalHeading('ایجاد محصول جدید')
+                                            ->action(function (array $data, Set $set, $livewire) {
+                                                // ایجاد محصول جدید
+                                                $product = Product::create([
+                                                    'name' => $data['name'],
+                                                    'barcode' => $data['barcode'],
+                                                    'selling_price' => (float) str_replace(',', '', $data['selling_price']),
+                                                    'purchase_price' => (float) str_replace(',', '', $data['purchase_price']),
+                                                    'minimum_order' => $data['minimum_order'],
+                                                    'lead_time' => $data['lead_time'],
+                                                    'reorder_point' => $data['reorder_point'],
+                                                    'sales_tax' => $data['sales_tax'],
+                                                    'purchase_tax' => $data['purchase_tax'],
+                                                    'type' => $data['type'],
+                                                    'inventory' => $data['inventory'],
+                                                    'product_unit_id' => $data['product_unit_id'],
+                                                    'tax_id' => $data['tax_id'],
+                                                    'product_category_id' => $data['product_category_id'],
+                                                    'company_id' => auth()->user('company')->id, // فرض بر این است که شرکت از کاربر لاگین شده می‌آید
+                                                ]);
+                                    
+                                                // مدیریت تصویر (اگر وجود داشته باشد)
+                                                if (!empty($data['image'])) {
+                                                    $product->update(['image' => $data['image']]);
+                                                }
+                                    
+                                                // مدیریت انبار (اگر انتخاب شده باشد)
+                                                if (!empty($data['selected_store_id']) && $data['inventory'] > 0) {
+                                                    $product->stores()->attach($data['selected_store_id'], ['quantity' => $data['inventory']]);
+                                                }
+                                    
+                                                // تنظیم مقدار سلکت‌باکس برای محصول جدید
+                                                $set('product_id', $product->id); // فرض می‌کنیم نام فیلد سلکت product_id است
+                                    
+                                                // ارسال رویداد برای رفرش گزینه‌ها
+                                                $livewire->dispatch('refresh-product-options');
+                                            })
+                                            ->form([
+                                                Forms\Components\Grid::make()
+                                                ->columns(3) // سه ستون
+                                                ->schema([
+                                                    
+                                                FileUpload::make('image')
+                                                ->label('تصویر')
+                                                ->disk('public')
+                                                ->directory('products/image')
+                                                ->visibility('private')
+                                                ->deleteUploadedFileUsing(function ($file) {
+                                                    $imagePath = env('APP_ROOT') . '/upload/' . $file;
+                                                    if (file_exists($imagePath)) {
+                                                        unlink($imagePath);
+                                                    }
+                                                })
+                                                ->columnSpanFull(),
+                                
+                                            Forms\Components\TextInput::make('name')
+                                                ->label('نام محصول')
+                                                ->required(),
+                                
+                                            Forms\Components\TagsInput::make('barcode')
+                                                ->label('بارکد'),
+                                
+                                            Forms\Components\TextInput::make('selling_price')
+                                                ->label('قیمت فروش')
+                                                ->mask(RawJs::make(<<<'JS'
+                                                    $money($input)
+                                                JS))
+                                                ->dehydrateStateUsing(function ($state) {
+                                                    return (float) str_replace(',', '', $state);
+                                                })
+                                                ->postfix('ریال'),
+                                
+                                            Forms\Components\TextInput::make('purchase_price')
+                                                ->label('قیمت خرید')
+                                                ->mask(RawJs::make(<<<'JS'
+                                                    $money($input)
+                                                JS))
+                                                ->dehydrateStateUsing(function ($state) {
+                                                    return (float) str_replace(',', '', $state);
+                                                })
+                                                ->postfix('ریال'),
+                                
+                                            Forms\Components\TextInput::make('minimum_order')
+                                                ->label('حداقل سفارش')
+                                                ->default(1)
+                                                ->numeric()
+                                                ->minValue(1),
+                                
+                                            Forms\Components\TextInput::make('lead_time')
+                                                ->label('زمان انتظار')
+                                                ->default(1)
+                                                ->numeric()
+                                                ->minValue(1)
+                                                ->postfix('روز'),
+                                
+                                            Forms\Components\TextInput::make('reorder_point')
+                                                ->label('نقطه سفارش')
+                                                ->minValue(1)
+                                                ->default(1)
+                                                ->numeric(),
+                                
+                                            Forms\Components\TextInput::make('sales_tax')
+                                                ->label('مالیات فروش')
+                                                ->default(0)
+                                                ->numeric()
+                                                ->minValue(0)
+                                                ->postfix('درصد'),
+                                
+                                            Forms\Components\TextInput::make('purchase_tax')
+                                                ->label('مالیات خرید')
+                                                ->default(0)
+                                                ->numeric()
+                                                ->minValue(0)
+                                                ->postfix('درصد'),
+                                
+                                            Forms\Components\Select::make('type')
+                                                ->label('نوع')
+                                                ->options([
+                                                    'Goods' => 'کالا',
+                                                    'Services' => 'خدمات',
+                                                ])
+                                                ->required(),
+                                
+                                            TextInput::make('inventory')
+                                                ->label('موجودی اولیه')
+                                                ->numeric()
+                                                ->default(0)
+                                                ->minValue(0)
+                                                ->reactive()
+                                                ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                                    $defaultStore = \App\Models\Store::where('is_default', true)->first();
+                                                    $storesExist = \App\Models\Store::exists();
+                                
+                                                    if ($state > 0 && !$defaultStore && $storesExist) {
+                                                        $set('show_store_select', true);
+                                                    } else {
+                                                        $set('show_store_select', false);
+                                                    }
+                                                }),
+                                
+                                            Forms\Components\Select::make('selected_store_id')
+                                                ->label('انبار')
+                                                ->options(fn() => \App\Models\Store::all()->pluck('title', 'id'))
+                                                ->visible(fn($get) => $get('show_store_select'))
+                                                ->required(fn($get) => $get('show_store_select')),
+                                
+                                            Forms\Components\Select::make('product_unit_id')
+                                                ->label('واحد شمارش')
+                                                ->options(ProductUnit::all()->pluck('name','id'))
+                                                ->required(),
+                                
+                                            Forms\Components\Select::make('tax_id')
+                                             ->options(fn() => \App\Models\Tax::all()->pluck('title', 'id'))
+                                                ->label('نوع مالیات'),
+                                
+                                            Forms\Components\Select::make('product_category_id')
+                                                ->required()
+                                                ->label('دسته پدر')
+                                                ->options(function () {
+                                                    $categories = ProductCategory::all();
+                                                    $options = [];
+                            
+                                                    $buildOptions = function ($categories, $parentId = null, $prefix = '') use (&$buildOptions, &$options) {
+                                                        $filtered = $categories->where('parent_id', $parentId);
+                                                        foreach ($filtered as $category) {
+                                                            $options[$category->id] = $prefix . $category->title;
+                                                            $buildOptions($categories, $category->id, $prefix . '— ');
+                                                        }
+                                                    };
+                            
+                                                    $buildOptions($categories);
+                                                    return $options;
+                                                })
+                                                ->placeholder('انتخاب دسته')
+                                                ->searchable()
+                                                ->preload()
+                                                ])
+                                                
+                                            ])
+                                            ->after(function ($livewire) {
+                                                $livewire->dispatch('refreshForm'); // رفرش فرم بعد از اضافه کردن
+                                            })
+                                    )
                                     ->afterStateUpdated(function ($state, callable $set) {
                                         $product = Product::find($state);
                                         $set('unit', $product ? $product->product_unit_id : null);
+
+                                        //
+                                        $latestInvoiceProduct = InvoiceItem::where('product_id',$state)->latest()->first();
+                                        $set('unit_price', $latestInvoiceProduct ? number_format($latestInvoiceProduct->unit_price, 0, '', ',') : 0); // تنظیم id محصول به عنوان unit_price
                                     })
                                     ->afterStateHydrated(function ($state, callable $set, $record) {
                                         if ($record && $record->unit) {
@@ -273,10 +466,10 @@ class SaleInvoiceResource extends Resource
                                                 if ($quantity <= 0) {
                                                     $fail("تعداد باید بزرگ‌تر از صفر باشد.");
                                                 }
-                                                if (!$record) { // فقط موقع ایجاد چک می‌کنیم
-                                                    $storeId = $get('../../store_id');
+                                                if (! $record) { // فقط موقع ایجاد چک می‌کنیم
+                                                    $storeId   = $get('../../store_id');
                                                     $productId = $get('product_id');
-                                                    $store = Store::find($storeId);
+                                                    $store     = Store::find($storeId);
                                                     if ($store) {
                                                         $currentStock = $store->getStock($productId);
                                                         if ($currentStock < $quantity) {
@@ -288,7 +481,7 @@ class SaleInvoiceResource extends Resource
                                         },
                                     ])
                                     ->helperText(function (Get $get) {
-                                        $storeId = $get('../../store_id');
+                                        $storeId   = $get('../../store_id');
                                         $productId = $get('product_id');
                                         if ($storeId && $productId) {
                                             $store = Store::find($storeId);
@@ -313,7 +506,7 @@ class SaleInvoiceResource extends Resource
                                             }
                                         },
                                     ])
-                                    ->default(0)
+
                                     ->live(onBlur: true)
                                     ->mask(RawJs::make('$money($input)'))
                                     ->dehydrateStateUsing(fn($state) => (float) str_replace(',', '', $state))
@@ -359,6 +552,17 @@ class SaleInvoiceResource extends Resource
                                     ->default(0),
                             ]),
                     ])
+                    ->mutateRelationshipDataBeforeFillUsing(function (array $data, $record): array {
+                        // تبدیل مقادیر به فرمت مناسب برای نمایش در فرم
+                        $data['quantity']       = number_format($data['quantity'], 0, '', ',');
+                        $data['unit_price']     = number_format($data['unit_price'], 0, '', ',');
+                        $data['sum_price']      = number_format($data['sum_price'], 0, '', ',');
+                        $data['discount_price'] = number_format($data['discount_price'], 0, '', ',');
+                        $data['tax_price']      = number_format($data['tax_price'], 0, '', ',');
+                        $data['total_price']    = number_format($data['total_price'], 0, '', ',');
+                        $data['unit']           = $data['unit'] ?? Product::find($data['product_id'])->product_unit_id;
+                        return $data;
+                    })
                     ->mutateRelationshipDataBeforeCreateUsing(fn(array $data) => self::calculateItemTotals($data))
                     ->mutateRelationshipDataBeforeSaveUsing(fn(array $data) => self::calculateItemTotals($data))
                     ->columns(7)
@@ -412,16 +616,50 @@ class SaleInvoiceResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('number')->label('شماره فاکتور'),
-                Tables\Columns\TextColumn::make('date_jalali')->label('تاریخ'),
-                Tables\Columns\TextColumn::make('title')->label('عنوان')->default('-'),
+                Tables\Columns\TextColumn::make('date_jalali')
+                ->label('تاریخ')
+                ->sortable(['date']),
+                Tables\Columns\TextColumn::make('title')
+                ->label('عنوان')
+                ->default('-')
+                ->searchable()
+                ->sortable(),
                 Tables\Columns\TextColumn::make('total_amount')
                     ->label('جمع مبلغ')
                     ->money('irr', locale: 'fa')
-                    ->getStateUsing(fn($record) => $record->items()->sum('total_price')),
-                Tables\Columns\TextColumn::make('remaining_amount')
-                    ->label('مانده دریافت')
+                    ->getStateUsing(fn($record) => $record->items()->sum('total_price'))
+                    ->sortable(
+                        query: fn($query, $direction) => $query->withSum('items', 'total_price')->orderBy('items_sum_total_price', $direction)
+                    )
+                    ->searchable(
+                        query: fn($query, $search) => $query->whereHas('items', fn($q) => $q->where('total_price', 'like', "%{$search}%"))
+                    ),
+                Tables\Columns\IconColumn::make('is_installment')
+                    ->label('اقساطی؟')
+                    ->boolean(),
+                    Tables\Columns\TextColumn::make('paid_amount')
+                    ->label('پرداخت‌شده')
                     ->money('irr', locale: 'fa')
-                    ->color(fn($record) => $record->remaining_amount > 0 ? 'danger' : 'success'),
+                    ->getStateUsing(fn($record) => $record->total_paid)
+                    ->sortable(
+                        query: fn($query, $direction) => $query->withSum('payments', 'amount')->orderBy('payments_sum_amount', $direction)
+                    ),
+                    Tables\Columns\TextColumn::make('remaining_amount')
+                    ->label('باقیمانده')
+                    ->money('irr', locale: 'fa')
+                    ->getStateUsing(fn($record) => $record->remaining_amount) // استفاده از accessor
+                    ->sortable(
+                        query: fn($query, $direction) => $query
+                            ->withSum('items', 'total_price') // برای total_amount
+                            ->withSum('payments', 'amount') // برای paid_amount
+                            ->orderByRaw('(items_sum_total_price - payments_sum_amount) ' . $direction)
+                    )
+                    ->searchable(
+                        query: fn($query, $search) => $query
+                            ->withSum('items', 'total_price')
+                            ->withSum('payments', 'amount')
+                            ->havingRaw('(items_sum_total_price - payments_sum_amount) LIKE ?', ["%{$search}%"])
+                    ),
             ])
             ->filters([])
             ->defaultSort('created_at', 'desc')
@@ -433,10 +671,10 @@ class SaleInvoiceResource extends Resource
                     ->modifyQueryUsing(fn(Builder $query, Model $record) => InvoiceItem::where('invoice_id', $record->id))
                     ->icon('heroicon-o-arrow-up-tray')
                     ->color('warning'),
-                Action::make('payments')
-                    ->label('دریافت‌ها')
-                    ->url(fn(Model $record): string => route('filament.company.resources.sale-invoices.payments', ['record' => $record]))
-                    ->icon('heroicon-o-currency-dollar'),
+                // Action::make('payments')
+                //     ->label('دریافت‌ها')
+                //     ->url(fn(Model $record): string => route('filament.company.resources.sale-invoices.payments', ['record' => $record]))
+                //     ->icon('heroicon-o-currency-dollar'),
                 Tables\Actions\EditAction::make()
                     ->label('ویرایش')
                     ->requiresConfirmation()
@@ -454,24 +692,24 @@ class SaleInvoiceResource extends Resource
                         }
                     })
                     ->successNotificationTitle('فاکتور با موفقیت ویرایش شد'),
-                Tables\Actions\DeleteAction::make()
-                    ->label('حذف')
-                    ->requiresConfirmation()
-                    ->modalHeading('حذف فاکتور فروش')
-                    ->modalDescription('آیا مطمئن هستید که می‌خواهید این فاکتور را حذف کنید؟')
-                    ->modalSubmitActionLabel('بله، حذف کن')
-                    ->before(function ($record, $action) {
-                        if ($record->payments()->exists()) {
-                            Notification::make()
-                                ->title('خطا')
-                                ->body('این فاکتور دارای دریافت است و نمی‌توان آن را حذف کرد.')
-                                ->danger()
-                                ->send();
-                            $action->cancel();
-                        }
-                        $record->items()->delete();
-                    })
-                    ->successNotificationTitle('فاکتور با موفقیت حذف شد'),
+                // Tables\Actions\DeleteAction::make()
+                //     ->label('حذف')
+                //     ->requiresConfirmation()
+                //     ->modalHeading('حذف فاکتور فروش')
+                //     ->modalDescription('آیا مطمئن هستید که می‌خواهید این فاکتور را حذف کنید؟')
+                //     ->modalSubmitActionLabel('بله، حذف کن')
+                //     ->before(function ($record, $action) {
+                //         if ($record->payments()->exists()) {
+                //             Notification::make()
+                //                 ->title('خطا')
+                //                 ->body('این فاکتور دارای دریافت است و نمی‌توان آن را حذف کرد.')
+                //                 ->danger()
+                //                 ->send();
+                //             $action->cancel();
+                //         }
+                //         $record->items()->delete();
+                //     })
+                //     ->successNotificationTitle('فاکتور با موفقیت حذف شد'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([]),
@@ -481,10 +719,10 @@ class SaleInvoiceResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListSaleInvoices::route('/'),
+            'index'  => Pages\ListSaleInvoices::route('/'),
             'create' => Pages\CreateSaleInvoice::route('/create'),
-            'edit' => Pages\EditSaleInvoice::route('/{record}/edit'),
-            'payments' => Pages\Payments::route('/{record}/payments'),
+            'edit'   => Pages\EditSaleInvoice::route('/{record}/edit'),
+            // 'payments' => Pages\Payments::route('/{record}/payments'),
         ];
     }
 
@@ -495,15 +733,15 @@ class SaleInvoiceResource extends Resource
 
     public static function updateCalculations(Get $get, Set $set)
     {
-        $quantity = self::cleanNumber($get('quantity'));
+        $quantity  = self::cleanNumber($get('quantity'));
         $unitPrice = self::cleanNumber($get('unit_price'));
-        $discount = self::cleanNumber($get('discount'));
-        $tax = self::cleanNumber($get('tax'));
+        $discount  = self::cleanNumber($get('discount'));
+        $tax       = self::cleanNumber($get('tax'));
 
-        $sumPrice = $quantity * $unitPrice;
+        $sumPrice      = $quantity * $unitPrice;
         $discountPrice = $sumPrice * ($discount / 100);
-        $taxPrice = ($sumPrice - $discountPrice) * ($tax / 100);
-        $totalPrice = $sumPrice - $discountPrice + $taxPrice;
+        $taxPrice      = ($sumPrice - $discountPrice) * ($tax / 100);
+        $totalPrice    = $sumPrice - $discountPrice + $taxPrice;
 
         $set('sum_price', number_format($sumPrice, 0, '', ','));
         $set('discount_price', number_format($discountPrice, 0, '', ','));
@@ -513,12 +751,12 @@ class SaleInvoiceResource extends Resource
 
     public static function calculateItemTotals(array $data): array
     {
-        $data['quantity'] = self::cleanNumber($data['quantity']);
-        $data['unit_price'] = self::cleanNumber($data['unit_price']);
-        $data['sum_price'] = $data['quantity'] * $data['unit_price'];
+        $data['quantity']       = self::cleanNumber($data['quantity']);
+        $data['unit_price']     = self::cleanNumber($data['unit_price']);
+        $data['sum_price']      = $data['quantity'] * $data['unit_price'];
         $data['discount_price'] = $data['sum_price'] * ($data['discount'] / 100);
-        $data['tax_price'] = ($data['sum_price'] - $data['discount_price']) * ($data['tax'] / 100);
-        $data['total_price'] = $data['sum_price'] - $data['discount_price'] + $data['tax_price'];
+        $data['tax_price']      = ($data['sum_price'] - $data['discount_price']) * ($data['tax'] / 100);
+        $data['total_price']    = $data['sum_price'] - $data['discount_price'] + $data['tax_price'];
         return $data;
     }
     protected static ?int $navigationSort = 6;

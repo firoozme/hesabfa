@@ -33,6 +33,10 @@ class StoreTransaction extends Model
     {
         return $this->hasMany(StoreTransactionItem::class, 'store_transaction_id');
     }
+    public function getDateJalaliAttribute()
+    {
+        return verta($this->date)->format('Y/m/d H:i');
+    }
     protected static function booted()
     {
         static::created(function ($transaction) {

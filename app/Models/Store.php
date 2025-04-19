@@ -44,7 +44,7 @@ class Store extends Model
      public function getStock($productId)
      {
          $entries = $this->transactions()
-             ->where('type', 'entry')
+             ->whereIn('type', ['entry','in'])
              ->whereHas('items', function ($query) use ($productId) {
                  $query->where('product_id', $productId);
              })

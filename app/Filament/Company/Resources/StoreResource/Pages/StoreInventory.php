@@ -57,7 +57,7 @@ class StoreInventory extends Page implements Tables\Contracts\HasTable
                     ->getStateUsing(function ($record) {
                         return StoreTransactionItem::whereHas('storeTransaction', function ($query) {
                                 $query->where('store_id', $this->record->id)
-                                      ->where('type', 'entry');
+                                ->whereIn('type', ['entry','in']);
                             })
                             ->where('product_id', $record->product_id)
                             ->sum('quantity');

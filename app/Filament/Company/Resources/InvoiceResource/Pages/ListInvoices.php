@@ -28,10 +28,10 @@ class ListInvoices extends ListRecords
                 ])
                 ->fileDisk('export'),
             Actions\CreateAction::make(),
-            Action::make('return')
-            ->label('ایجاد برگشت خرید')
-            ->color('danger')
-            ->url(fn()=> route('filament.company.resources.purchase-return-invoices.create'))
+            // Action::make('return')
+            // ->label('ایجاد برگشت خرید')
+            // ->color('danger')
+            // ->url(fn()=> route('filament.company.resources.purchase-return-invoices.create'))
         ];
     }
 }

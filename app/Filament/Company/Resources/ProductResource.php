@@ -6,6 +6,7 @@ use stdClass;
 use App\Models\Tax;
 use Filament\Forms;
 use Filament\Tables;
+use App\Models\Store;
 use App\Models\Product;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
@@ -14,6 +15,7 @@ use Filament\Support\RawJs;
 use App\Models\ProductCategory;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Resources\Resource;
+use Filament\Forms\Components\Select;
 use Illuminate\Support\Facades\Blade;
 use Filament\Tables\Contracts\HasTable;
 use Illuminate\Database\Eloquent\Model;
@@ -54,6 +56,7 @@ class ProductResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
+
             ->schema([
 
                 FileUpload::make('image')
@@ -129,6 +132,30 @@ class ProductResource extends Resource
                         'Services' => 'خدمات',
                     ])
                     ->required(),
+                    TextInput::make('inventory')
+                    ->label('موجودی اولیه')
+                    ->numeric()
+                    ->default(0)
+                    ->minValue(0)
+                    ->reactive()
+                    ->hidden(fn($context)=>$context==='edit')
+                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                        $defaultStore = \App\Models\Store::where('is_default', true)->first();
+                        $storesExist = \App\Models\Store::exists();
+
+                        if ($state > 0 && !$defaultStore && $storesExist) {
+                            $set('show_store_select', true);
+                        } else {
+                            $set('show_store_select', false);
+                        }
+                    }),
+                Select::make('selected_store_id')
+                    ->label('انبار')
+                    ->hidden(fn($context)=>$context==='edit')
+                    ->options(fn() => \App\Models\Store::all()->pluck('title', 'id'))
+                    ->visible(fn($get) => $get('show_store_select'))
+                    ->required(fn($get) => $get('show_store_select')),
+                    
                 Forms\Components\Select::make('product_unit_id')
                     ->label('واحد شمارش')
                     ->relationship('unit', 'name')
@@ -387,4 +414,5 @@ class ProductResource extends Resource
                 ActiveProductScope::class
             ]);
     }
+
 }

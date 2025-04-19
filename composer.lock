@@ -560,16 +560,16 @@
         },
         {
             "name": "codewithdennis/filament-select-tree",
-            "version": "v3.1.46",
+            "version": "v3.1.51",
             "source": {
                 "type": "git",
                 "url": "https://github.com/CodeWithDennis/filament-select-tree.git",
-                "reference": "8eb942de97a92836b8d983a00f756ad8ad14229d"
+                "reference": "64f99b5a32ba0e91f08359e37ec952d44548b2df"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/CodeWithDennis/filament-select-tree/zipball/8eb942de97a92836b8d983a00f756ad8ad14229d",
-                "reference": "8eb942de97a92836b8d983a00f756ad8ad14229d",
+                "url": "https://api.github.com/repos/CodeWithDennis/filament-select-tree/zipball/64f99b5a32ba0e91f08359e37ec952d44548b2df",
+                "reference": "64f99b5a32ba0e91f08359e37ec952d44548b2df",
                 "shasum": ""
             },
             "require": {
@@ -627,7 +627,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-02-23T19:37:51+00:00"
+            "time": "2025-04-12T17:12:29+00:00"
         },
         {
             "name": "composer/pcre",

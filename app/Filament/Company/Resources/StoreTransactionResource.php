@@ -112,11 +112,22 @@ class StoreTransactionResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('store.title')->label('انبار'),
-                Tables\Columns\TextColumn::make('type')->label('نوع'),
+                Tables\Columns\TextColumn::make('type')->label('نوع')
+                ->formatStateUsing(fn(string $state) => match ($state) {
+                    'in' => 'موجودی اولیه',
+                    'entry' => 'ورودی',
+                    'exit' => 'خروجی',
+                })
+                ->color(fn(string $state) => match ($state) {
+                    'in' => 'warning',
+                    'entry' => 'success',
+                    'exit' => 'danger',
+                }),
                 Tables\Columns\TextColumn::make('reference')->label('شماره حواله'),
-                Tables\Columns\TextColumn::make('date')->label('تاریخ')->date(),
+                Tables\Columns\TextColumn::make('date_jalali')->label('تاریخ'),
                 Tables\Columns\TextColumn::make('items_count')->label('تعداد آیتم‌ها')->counts('items'),
             ])
+            ->defaultSort('created_at','desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('type')
                     ->options([
