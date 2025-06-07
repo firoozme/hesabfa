@@ -70,7 +70,7 @@ class LogResource extends Resource
      // Role & Permissions
      public static function canViewAny(): bool
      {
-         return Auth::user()?->can('log_view_any');
+         return Auth::user()?->can('log_view');
      }
  
      public static function canView(Model $record): bool
@@ -78,18 +78,5 @@ class LogResource extends Resource
          return Auth::user()?->can('log_view');
      }
  
-     public static function canCreate(): bool
-     {
-         return Auth::user()?->can('log_create');
-     }
- 
-     public static function canEdit(Model $record): bool
-     {
-         return Auth::user()?->can('log_update');
-     }
- 
-     public static function canDelete(Model $record): bool
-     {
-         return Auth::user()?->can('log_delete');
-     }
+    
 }

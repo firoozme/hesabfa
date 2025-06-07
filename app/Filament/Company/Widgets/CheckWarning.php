@@ -21,7 +21,7 @@ class CheckWarning extends BaseWidget
         return $table
             ->query(
                 Check::query()
-                ->where('company_id', auth()->user('company')->id) // فرض: چک‌ها به شرکت ربط دارن
+                ->where('company_id', auth('company')->user()->id) // فرض: چک‌ها به شرکت ربط دارن
                 ->where('due_date', '>=', now())
                 ->where('due_date', '<=', now()->addDays(30)) // چک‌هایی که تا 7 روز آینده سررسید دارن
                 ->whereIn('status', ['in_progress', 'overdue']) // فقط چک‌های در حال اجرا یا سررسید گذشته
@@ -56,7 +56,7 @@ class CheckWarning extends BaseWidget
     public static function canView(): bool
 {
     return Check::query()
-    ->where('company_id', auth()->user('company')->id) // فرض: چک‌ها به شرکت ربط دارن
+    ->where('company_id', auth('company')->user()->id) // فرض: چک‌ها به شرکت ربط دارن
     ->where('due_date', '>=', now())
     ->where('due_date', '<=', now()->addDays(30)) // چک‌هایی که تا 7 روز آینده سررسید دارن
     ->whereIn('status', ['in_progress', 'overdue']) // فقط چک‌های در حال اجرا یا سررسید گذشته

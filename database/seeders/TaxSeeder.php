@@ -11,7 +11,7 @@ class TaxSeeder extends Seeder
     /**
      * Run the database seeds.
      */
-    public function run(): void
+    public function runWithCompanyId(int $companyId): void
     {
         $taxes = [
             ['title' => 'دارو', 'value' => '0'],
@@ -29,6 +29,7 @@ class TaxSeeder extends Seeder
         ];
 
         foreach ($taxes as $tax) {
+            $tax['company_id'] = $companyId;
             DB::table('taxes')->insert($tax);
         }
     }

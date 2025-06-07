@@ -15,17 +15,21 @@ use Filament\Forms\Form;
 use App\Models\PersonType;
 use Filament\Tables\Table;
 use App\Models\InvoiceItem;
+use App\Models\ProductType;
 use App\Models\ProductUnit;
 use Filament\Support\RawJs;
+use App\Models\ProductCategory;
 use Filament\Resources\Resource;
 use Filament\Forms\Components\Grid;
 use Filament\Tables\Actions\Action;
 use Filament\Forms\Components\Radio;
 use App\Models\PurchaseReturnInvoice;
 use Pages\ListReturnPurchaseInvoices;
+use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Fieldset;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rules\Unique;
+use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Actions\ExportAction;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Placeholder;
@@ -70,7 +74,7 @@ class PurchaseReturnInvoiceResource extends Resource
                             ->required()
                             ->live()
                             ->afterStateUpdated(function ($state, callable $set) {
-                                $invoice = Invoice::withTrashed()->latest()->first();
+                                $invoice = Invoice::where('type','purchase_return')->where('company_id',auth('company')->user()->id)->withTrashed()->orderBy('number','desc')->first();
                                 $id = $invoice ? (++$invoice->id) : 1;
                                 $set('number', (int)$id);
                             }),
@@ -80,9 +84,9 @@ class PurchaseReturnInvoiceResource extends Resource
                             ->default('auto')
                             ->live()
                             ->afterStateUpdated(function ($state, callable $set) {
-                                $invoice = Invoice::withTrashed()->latest()->first();
-                                $id = $invoice ? (++$invoice->id) : 1;
-                                $state === 'auto' ? $set('number', (int)$id) : $set('number', '');
+                                $invoice = Invoice::where('type','purchase_return')->swhere('company_id',auth('company')->user()->id)->withTrashed()->orderBy('number','desc')->first();
+                                $number = $invoice ? (++$invoice->number) : 1;
+                                $state === 'auto' ? $set('number', (int)$number) : $set('number', '');
                             })
                             ->inline()
                             ->inlineLabel(false),
@@ -92,12 +96,15 @@ class PurchaseReturnInvoiceResource extends Resource
                             ->required()
                             ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                             ->default(function (Get $get) {
-                                $invoice = Invoice::withTrashed()->latest()->first();
-                                $id = $invoice ? (++$invoice->id) : 1;
-                                return ($get('accounting_auto') == 'auto') ? (int)$id : '';
+                                $invoice = Invoice::where('type','purchase_return')->where('company_id',auth('company')->user()->id)->withTrashed()->orderBy('number','desc')->first();
+                                $number = $invoice ? (++$invoice->number) : 1;
+                                return ($get('accounting_auto') == 'auto') ? (int)$number : '';
                             })
                             ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                                return $rule->where('deleted_at', null);
+                                return $rule
+                                ->where('type','purchase_return')
+                                ->where('company_id', auth('company')->user()->id) // شرط company_id
+                                ->where('deleted_at', null); //
                             })
                             ->live()
                             ->maxLength(255),
@@ -165,7 +172,10 @@ class PurchaseReturnInvoiceResource extends Resource
                                             })
                                             ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                                             ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                                                return $rule->where('deleted_at', null);
+                                                return $rule
+                                                ->where('type','purchase_return')
+                                                ->where('company_id', auth('company')->user()->id) // شرط company_id
+                                                ->where('deleted_at', null); //
                                             })
                                             ->live()
                                             ->maxLength(255),
@@ -236,18 +246,205 @@ class PurchaseReturnInvoiceResource extends Resource
                     ->minItems(1)
                     ->defaultItems(1)
                     ->addable(true)
+                    
                     ->deleteAction(fn($action) => $action->hidden(fn($state) => count($state) <= 1))
                     ->schema([
-                        Grid::make(['default' => 1, 'sm' => 2, 'md' => 4, 'lg' => 7])
+                        Grid::make(['default' => 1, 'sm' => 2, 'md' => 4, 'lg' => 10])
                             ->schema([
                                 Forms\Components\Select::make('product_id')
                                     ->label('محصول')
+                                    ->searchable()
+                                    ->placeholder('انتخاب')
+                                    ->loadingMessage('در حال لود ...')
+                                    ->searchPrompt('تایپ کنید ...')
+                                    ->noSearchResultsMessage('بدون نتیجه!')
                                     ->options(Product::where('company_id', auth()->user('company')->id)->pluck('name', 'id'))
                                     ->required()
-                                    ->reactive()
+                                    ->live()
+                                    ->columnSpan(2)
+                                    ->suffixAction(
+                                        Act::make('add_product')
+                                            ->label('افزودن محصول')
+                                            ->icon('heroicon-o-plus')
+                                            ->modalHeading('ایجاد محصول جدید')
+                                            ->action(function (array $data, Set $set, $livewire) {
+                                                // ایجاد محصول جدید
+                                                $product = Product::create([
+                                                    'name' => $data['name'],
+                                                    'barcode' => $data['barcode'],
+                                                    'selling_price' => (float) str_replace(',', '', $data['selling_price']),
+                                                    'purchase_price' => (float) str_replace(',', '', $data['purchase_price']),
+                                                    'minimum_order' => $data['minimum_order'],
+                                                    'lead_time' => $data['lead_time'],
+                                                    'reorder_point' => $data['reorder_point'],
+                                                    'sales_tax' => $data['sales_tax'],
+                                                    'purchase_tax' => $data['purchase_tax'],
+                                                    'product_type_id' => $data['type'],
+                                                    'inventory' => $data['inventory'] ?? 0,
+                                                    'product_unit_id' => $data['product_unit_id'],
+                                                    'tax_id' => $data['tax_id'],
+                                                    'product_category_id' => $data['product_category_id'],
+                                                    'company_id' => auth('company')->user()->id, // فرض بر این است که شرکت از کاربر لاگین شده می‌آید
+                                                ]);
+                                    
+                                                // مدیریت تصویر (اگر وجود داشته باشد)
+                                                if (!empty($data['image'])) {
+                                                    $product->update(['image' => $data['image']]);
+                                                }
+                                    
+                                                // مدیریت انبار (اگر انتخاب شده باشد)
+                                                if (!empty($data['selected_store_id']) && $data['inventory'] > 0) {
+                                                    $product->stores()->attach($data['selected_store_id'], ['quantity' => $data['inventory']]);
+                                                }
+                                    
+                                                // تنظیم مقدار سلکت‌باکس برای محصول جدید
+                                                $set('product_id', $product->id); // فرض می‌کنیم نام فیلد سلکت product_id است
+                                    
+                                                // ارسال رویداد برای رفرش گزینه‌ها
+                                                $livewire->dispatch('refresh-product-options');
+
+                                                $set('unit',$product->product_unit_id);
+                                                $set('unit_price', $product ? $product->purchase_price : null);
+                                            })
+                                            ->form([
+                                                Section::make()
+                                                ->columns([
+                                                    'sm' => 2,
+                                                    'xl' => 3,
+                                                    '2xl' => 4,
+                                                ])
+                                                ->schema([
+                                                    
+                                                FileUpload::make('image')
+                                                    ->label('تصویر')
+                                                    ->disk('public')
+                                                    ->directory('products/image')
+                                                    ->visibility('private')
+                                                    ->deleteUploadedFileUsing(function ($file) {
+                                                        $imagePath = env('APP_ROOT') . '/upload/' . $file;
+                                                        if (file_exists($imagePath)) {
+                                                            unlink($imagePath);
+                                                        }
+                                                    })
+                                                    ->columnSpanFull(),
+                                    
+                                                Forms\Components\TextInput::make('name')
+                                                    ->label('نام محصول')
+                                                    ->required(),
+                                    
+                                                Forms\Components\TagsInput::make('barcode')
+                                                    ->label('بارکد'),
+                                    
+                                                Forms\Components\TextInput::make('selling_price')
+                                                    ->label('قیمت فروش')
+                                                    ->mask(RawJs::make(<<<'JS'
+                                                        $money($input)
+                                                    JS))
+                                                    ->dehydrateStateUsing(function ($state) {
+                                                        return (float) str_replace(',', '', $state);
+                                                    })
+                                                    ->postfix('ریال'),
+                                    
+                                                Forms\Components\TextInput::make('purchase_price')
+                                                    ->label('قیمت خرید')
+                                                    ->mask(RawJs::make(<<<'JS'
+                                                        $money($input)
+                                                    JS))
+                                                    ->dehydrateStateUsing(function ($state) {
+                                                        return (float) str_replace(',', '', $state);
+                                                    })
+                                                    ->postfix('ریال'),
+                                    
+                                                Forms\Components\TextInput::make('minimum_order')
+                                                    ->label('حداقل سفارش')
+                                                    ->default(1)
+                                                    ->numeric()
+                                                    ->minValue(1),
+                                    
+                                                Forms\Components\TextInput::make('lead_time')
+                                                    ->label('زمان انتظار')
+                                                    ->default(1)
+                                                    ->numeric()
+                                                    ->minValue(1)
+                                                    ->postfix('روز'),
+                                    
+                                                Forms\Components\TextInput::make('reorder_point')
+                                                    ->label('نقطه سفارش')
+                                                    ->minValue(1)
+                                                    ->default(1)
+                                                    ->numeric(),
+                                    
+                                                Forms\Components\TextInput::make('sales_tax')
+                                                    ->label('مالیات فروش')
+                                                    ->default(0)
+                                                    ->numeric()
+                                                    ->minValue(0)
+                                                    ->postfix('درصد'),
+                                    
+                                                Forms\Components\TextInput::make('purchase_tax')
+                                                    ->label('مالیات خرید')
+                                                    ->default(0)
+                                                    ->numeric()
+                                                    ->minValue(0)
+                                                    ->postfix('درصد'),
+                                    
+                                                Forms\Components\Select::make('type')
+                                                    ->label('نوع')
+                                                    ->options(ProductType::all()->pluck('title','id'))
+
+                                                    ->required(),
+                                    
+                                               
+                                    
+                                                Forms\Components\Select::make('selected_store_id')
+                                                    ->label('انبار')
+                                                    ->options(fn() => \App\Models\Store::all()->pluck('title', 'id'))
+                                                    ->visible(fn($get) => $get('show_store_select'))
+                                                    ->required(fn($get) => $get('show_store_select')),
+                                    
+                                                Forms\Components\Select::make('product_unit_id')
+                                                    ->label('واحد شمارش')
+                                                    ->options(ProductUnit::all()->pluck('name','id'))
+                                                    ->required(),
+                                    
+                                                Forms\Components\Select::make('tax_id')
+                                                 ->options(fn() => \App\Models\Tax::all()->where('company_id',auth('company')->user()->id)->pluck('title', 'id'))
+                                                    ->label('نوع مالیات'),
+                                    
+                                                    Forms\Components\Select::make('product_category_id')
+                                                    ->required()
+                                                    ->label('گروه بندی')
+                                                    ->options(function () {
+                                                        $categories = ProductCategory::all();
+                                                        $options = [];
+                                
+                                                        $buildOptions = function ($categories, $parentId = null, $prefix = '') use (&$buildOptions, &$options) {
+                                                            $filtered = $categories->where('parent_id', $parentId);
+                                                            foreach ($filtered as $category) {
+                                                                $options[$category->id] = $prefix . $category->title;
+                                                                $buildOptions($categories, $category->id, $prefix . '— ');
+                                                            }
+                                                        };
+                                
+                                                        $buildOptions($categories);
+                                                        return $options;
+                                                    })
+                                                    ->placeholder('انتخاب گروه')
+                                                    ->searchable()
+                                                    ->preload()
+                                                ])
+                                                
+                                            ])
+                                            ->after(function ($livewire) {
+                                                $livewire->dispatch('refreshForm'); // رفرش فرم بعد از اضافه کردن
+                                            })
+                                    )
+                                    
                                     ->afterStateUpdated(function ($state, callable $set) {
                                         $product = Product::find($state);
                                         $set('unit', $product ? $product->product_unit_id : null);
+                                        $set('unit_price', $product ? $product->purchase_price : null);
+
                                     })
                                     ->afterStateHydrated(function ($state, callable $set, $record) {
                                         if ($record && $record->unit) {
@@ -309,6 +506,7 @@ class PurchaseReturnInvoiceResource extends Resource
                                 Forms\Components\TextInput::make('unit_price')
                                     ->label('مبلغ واحد')
                                     ->suffix('ریال')
+                                    ->columnSpan(2)
                                     ->required()
                                     ->rules([
                                         fn(Get $get) => function (string $attribute, $value, callable $fail) use ($get) {
@@ -361,6 +559,7 @@ class PurchaseReturnInvoiceResource extends Resource
                                     ->label('جمع کل')
                                     ->suffix('ریال')
                                     ->readOnly()
+                                    ->columnSpan(2)
                                     ->default(0),
                             ]),
                     ])
@@ -491,9 +690,9 @@ class PurchaseReturnInvoiceResource extends Resource
         $data['total_price'] = $data['sum_price'] - $data['discount_price'] + $data['tax_price'];
         return $data;
     }
-
-    public static function shouldRegisterNavigation(): bool
-{
-    return false;
-}
+    protected static ?int $navigationSort = 5;
+//     public static function shouldRegisterNavigation(): bool
+// {
+//     return false;
+// }
 }

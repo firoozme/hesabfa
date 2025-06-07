@@ -47,9 +47,9 @@ class PettyCashResource extends Resource
 
                     ->afterStateUpdated(
                         function($state, callable $set){
-                            $pettyCash = PettyCash::withTrashed()->latest()->first();
-                            $id      = $pettyCash ? (++$pettyCash->id) : 1;
-                            $state === 'auto' ? $set('accounting_code', $id) : $set('accounting_code', '');
+                            $pettyCash = PettyCash::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                            $accounting_code      = $pettyCash ? (++$pettyCash->accounting_code) : 1;
+                            $state === 'auto' ? $set('accounting_code', $accounting_code) : $set('accounting_code', '');
                         }
                     )
                     ->inline()
@@ -59,27 +59,31 @@ class PettyCashResource extends Resource
                     ->extraAttributes(['style' => 'direction:ltr'])
                     ->required()
                     ->afterStateHydrated(function (Get $get) {
-                        $pettyCash = PettyCash::withTrashed()->latest()->first();
-                        $id      = $pettyCash ? (++$pettyCash->id) : 1;
-                        return ($get('accounting_auto') == 'auto') ? $id : '';
+                        $pettyCash = PettyCash::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                        $accounting_code      = $pettyCash ? (++$pettyCash->accounting_code) : 1;
+                        return ($get('accounting_auto') == 'auto') ? $accounting_code : '';
                     })
                     ->default(
                         function (Get $get) {
-                            $pettyCash = PettyCash::withTrashed()->latest()->first();
-                            $id      = $pettyCash ? (++$pettyCash->id) : 1;
-                            return ($get('accounting_auto') == 'auto') ? $id : '';
+                            $pettyCash = PettyCash::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                            $accounting_code      = $pettyCash ? (++$pettyCash->accounting_code) : 1;
+                            return ($get('accounting_auto') == 'auto') ? $accounting_code : '';
                         }
                     )
                     ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                     ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                        return $rule->where('deleted_at', null);
+                        return $rule
+                        ->where('company_id', auth('company')->user()->id) // شرط company_id
+                        ->where('deleted_at', null); //
                     })
                     ->live()
                     ->maxLength(255),
                 Forms\Components\TextInput::make('name')
                     ->label('نام')
                     ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                        return $rule->where('deleted_at', null);
+                        return $rule
+            ->where('company_id', auth('company')->user()->id) // شرط company_id
+            ->where('deleted_at', null); //
                     })
                     ->required()
                     ->columnSpanFull(),
@@ -101,7 +105,8 @@ class PettyCashResource extends Resource
                 ->label('نام')
                 ->description(function(Model $record){
                     // محاسبه موجودی
-                    $balance = $record->incomingTransfers()->sum('amount') - $record->outgoingTransfers()->sum('amount');
+                    // $balance = $record->incomingTransfers()->sum('amount') - $record->outgoingTransfers()->sum('amount');
+                    $balance = $record->balance;
 
                     // تغییر رنگ توضیحات بر اساس موجودی
                     $color = 'black'; // رنگ پیش‌فرض
@@ -127,7 +132,7 @@ class PettyCashResource extends Resource
             ])
             ->actions([
                 Tables\Actions\Action::make('detail')
-                ->label('سند حسابداری')
+                ->label('گردش')
                 ->color('warning')
                 ->icon('heroicon-o-eye')
                 ->modalSubmitAction(false)

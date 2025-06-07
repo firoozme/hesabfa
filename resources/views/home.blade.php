@@ -19,7 +19,7 @@
                 <div class="container bg-transparent">
                     <nav class="flex items-center justify-between py-3 bg-transparent">
                         <a class="text-3xl font-semibold leading-none" href="index.html">
-                            <img class="h-10 lazy" src="{{ asset('upload/'.$setting->logo) }}" alt="لوگو">
+                            <img class="h-10 lazy" src="{{ asset('storage/'.$setting->logo) }}" alt="لوگو">
                         </a>
                         <ul class="hidden lg:flex lg:items-center lg:w-auto lg:space-x-12">
                             <li class="relative pt-4 pb-4 group has-child">
@@ -56,7 +56,7 @@
                 <nav class="fixed top-0 bottom-0 left-0 flex flex-col w-5/6 max-w-sm px-6 py-6 overflow-y-auto transition duration-300 bg-white border-r">
                     <div class="flex items-center mb-8">
                         <a class="mr-auto text-3xl font-semibold leading-none" href="#">
-                            <img class="h-10 lazy" src="{{ asset('upload/'.$setting->logo) }}" alt="">
+                            <img class="h-10 lazy" src="{{ asset('storage/'.$setting->logo) }}" alt="">
                         </a>
                         <button class="navbar-close">
                             <svg class="w-6 h-6 cursor-pointer text-blueGray-400 hover:text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -121,7 +121,7 @@
                         </div>
                         <div class="w-full px-3 mb-12 lg:w-3/5 lg:mb-0">
                             <div class="flex items-center justify-center lg:h-128">
-                                <img class="lg:max-w-lg lazy" src="{{ asset('upload/'.$setting->image) }}" alt="">
+                                <img class="lg:max-w-lg lazy" src="{{ asset('storage/'.$setting->image) }}" alt="">
                             </div>
                         </div>
                     </div>

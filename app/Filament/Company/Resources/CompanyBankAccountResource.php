@@ -40,6 +40,7 @@ class CompanyBankAccountResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
+        
             ->schema([
                 Radio::make('accounting_auto')
                 ->label('نحوه ورود کد حسابداری')
@@ -51,9 +52,9 @@ class CompanyBankAccountResource extends Resource
                 ->live()
                 ->afterStateUpdated(
                     function($state, callable $set){
-                        $companyBankAccount = CompanyBankAccount::withTrashed()->latest()->first();
-                        $id      = $companyBankAccount ? (++$companyBankAccount->id) : 1;
-                        $state === 'auto' ? $set('accounting_code', $id) : $set('accounting_code', '');
+                        $companyBankAccount = CompanyBankAccount::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                        $accounting_code      = $companyBankAccount ? (++$companyBankAccount->accounting_code) : 1;
+                        $state === 'auto' ? $set('accounting_code', $accounting_code) : $set('accounting_code', '');
                     }
 
                 )
@@ -64,19 +65,21 @@ class CompanyBankAccountResource extends Resource
                 ->label('کد حسابداری')
                 ->required()
                 ->afterStateHydrated(function (Get $get) {
-                    $companyBankAccount = CompanyBankAccount::withTrashed()->latest()->first();
-                    $id = $companyBankAccount ? (++$companyBankAccount->id) : 1;
-                    return ($get('accounting_auto') == 'auto') ?? $id;
+                    $companyBankAccount = CompanyBankAccount::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                    $accounting_code = $companyBankAccount ? (++$companyBankAccount->accounting_code) : 1;
+                    return ($get('accounting_auto') == 'auto') ?? $accounting_code;
                 })
                 ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                 ->default(
                     function (Get $get) {
-                    $companyBankAccount = CompanyBankAccount::withTrashed()->latest()->first();
-                    $id      = $companyBankAccount ? (++$companyBankAccount->id) : 1;
-                    return ($get('accounting_auto') == 'auto') ? $id  : '';
+                    $companyBankAccount = CompanyBankAccount::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                    $accounting_code      = $companyBankAccount ? (++$companyBankAccount->accounting_code) : 1;
+                    return ($get('accounting_auto') == 'auto') ? $accounting_code  : '';
                 })
                 ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                    return $rule->where('deleted_at', null);
+                    return $rule
+                    ->where('company_id', auth('company')->user()->id) // شرط company_id
+                    ->where('deleted_at', null); //
                 })
                 ->live()
                 ->maxLength(255),
@@ -85,6 +88,7 @@ class CompanyBankAccountResource extends Resource
                 ->required(),
                 Forms\Components\TextInput::make('balance')
                 ->label('موجودی اولیه')
+                ->hidden(fn($context) => $context === 'edit')
                 ->postfix('ریال')
                 ->default(0)
                 ->required()
@@ -98,7 +102,7 @@ class CompanyBankAccountResource extends Resource
                     ->label('بانک')
                     ->searchable()
                     ->preload()
-                    ->relationship('banks','name')
+                    ->options(Bank::where('company_id',auth('company')->user()->id)->pluck('name', 'id')->toArray())
                     ->suffixAction(
                         Action::make('add_bank')
                             ->label('اضافه کردن بانک')
@@ -145,6 +149,7 @@ class CompanyBankAccountResource extends Resource
                 ->label('توضیحات')
                 ->columnSpanFull(),
             ]);
+            
     }
 
     public static function table(Table $table): Table
@@ -225,7 +230,7 @@ class CompanyBankAccountResource extends Resource
             ])
             ->actions([
                 Tables\Actions\Action::make('detail')
-                ->label('سند حسابداری')
+                ->label('گردش')
                 ->color('warning')
                 ->icon('heroicon-o-eye')
                 ->modalSubmitAction(false)

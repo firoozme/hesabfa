@@ -48,9 +48,9 @@ class FundResource extends Resource
 
                     ->afterStateUpdated(
                         function($state, callable $set){
-                            $fund = Fund::withTrashed()->latest()->first();
-                            $id      = $fund ? (++$fund->id) : 1;
-                            $state === 'auto' ? $set('accounting_code', $id) : $set('accounting_code', '');
+                            $fund = Fund::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                            $accounting_code      = $fund ? (++$fund->accounting_code) : 1;
+                            $state === 'auto' ? $set('accounting_code', $accounting_code) : $set('accounting_code', '');
                         }
                     )
                     ->inline()
@@ -60,18 +60,20 @@ class FundResource extends Resource
                     ->label('کد حسابداری')
                     ->required()
                     ->afterStateHydrated(function (Get $get) {
-                        $fund = Fund::withTrashed()->latest()->first();
-                        $id      = $fund ? (++$fund->id) : 1;
-                        return ($get('accounting_auto') == 'auto') ? $id : '';
+                        $fund = Fund::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                        $accounting_code      = $fund ? (++$fund->accounting_code) : 1;
+                        return ($get('accounting_auto') == 'auto') ? $accounting_code : '';
                     })
                     ->default(function (Get $get) {
-                        $fund = Fund::withTrashed()->latest()->first();
-                        $id      = $fund ? (++$fund->id) : 1;
-                        return ($get('accounting_auto') == 'auto') ? $id : '';
+                        $fund = Fund::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                        $accounting_code      = $fund ? (++$fund->accounting_code) : 1;
+                        return ($get('accounting_auto') == 'auto') ? $accounting_code : '';
                     })
                     ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                     ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                        return $rule->where('deleted_at', null);
+                         return $rule
+                        ->where('company_id', auth('company')->user()->id) // شرط company_id
+                        ->where('deleted_at', null); //
                     })
                     ->live()
                     ->maxLength(255),
@@ -167,7 +169,7 @@ class FundResource extends Resource
             ])
             ->actions([
                 Tables\Actions\Action::make('detail')
-                ->label('سند حسابداری')
+                ->label('گردش')
                 ->color('warning')
                 ->icon('heroicon-o-eye')
                 ->modalSubmitAction(false)

@@ -1,32 +1,33 @@
 <?php
 namespace App\Filament\Company\Resources;
 
-use App\Filament\Company\Resources\ExpenseResource\Pages;
-use App\Models\AccountingCategory;
-use App\Models\AccountingTransaction;
-use App\Models\Bank;
-use App\Models\Check;
-use App\Models\CompanyBankAccount;
-use App\Models\Expense;
-use App\Models\Fund;
-use App\Models\Payment;
-use App\Models\PettyCash;
-use CodeWithDennis\FilamentSelectTree\SelectTree;
 use Filament\Forms;
+use App\Models\Bank;
+use App\Models\Fund;
+use Filament\Tables;
+use App\Models\Check;
+use App\Models\Expense;
+use App\Models\Payment;
+use Filament\Forms\Get;
+use Filament\Forms\Form;
+use App\Models\PettyCash;
+use Illuminate\View\View;
+use Filament\Tables\Table;
+use Filament\Support\RawJs;
+use Filament\Resources\Resource;
+use App\Models\AccountingCategory;
+use App\Models\CompanyBankAccount;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Radio;
+use App\Models\AccountingTransaction;
 use Filament\Forms\Components\Repeater;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Notifications\Notification;
-use Filament\Resources\Resource;
-use Filament\Support\RawJs;
-use Filament\Tables;
-use Filament\Tables\Columns\Summarizers\Sum;
-use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Table;
 use Illuminate\Validation\Rules\Unique;
-use Illuminate\View\View;
+use Filament\Notifications\Notification;
+use Filament\Tables\Enums\FiltersLayout;
+use Illuminate\Database\Eloquent\Builder;
+use Filament\Tables\Columns\Summarizers\Sum;
+use CodeWithDennis\FilamentSelectTree\SelectTree;
+use App\Filament\Company\Resources\ExpenseResource\Pages;
 
 class ExpenseResource extends Resource
 {
@@ -36,7 +37,10 @@ class ExpenseResource extends Resource
     protected static ?string $label           = 'هزینه';
     protected static ?string $navigationGroup = 'خرید';
     protected static ?string $navigationIcon  = 'heroicon-o-currency-dollar';
-
+    public static function getEloquentQuery(): Builder
+{
+    return parent::getEloquentQuery()->where('company_id', auth()->user('company')->id);
+}
     public static function form(Forms\Form $form): Forms\Form
     {
         return $form
@@ -49,9 +53,9 @@ class ExpenseResource extends Resource
                             ->default('auto')
                             ->live()
                             ->afterStateUpdated(function ($state, callable $set) {
-                                $expense = Expense::withTrashed()->latest()->first();
-                                $id      = $expense ? (++$expense->id) : 1;
-                                $state === 'auto' ? $set('number', (int) $id) : $set('number', '');
+                                $expense = Expense::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                                $number      = $expense ? (++$expense->number) : 1;
+                                $state === 'auto' ? $set('number', (int) $number) : $set('number', '');
                             })
                             ->inline()
                             ->inlineLabel(false),
@@ -61,12 +65,14 @@ class ExpenseResource extends Resource
                             ->required()
                             ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                             ->default(function (Get $get) {
-                                $expense = Expense::withTrashed()->latest()->first();
-                                $id      = $expense ? (++$expense->id) : 1;
-                                return ($get('accounting_auto') == 'auto') ? (int) $id : '';
+                                $expense = Expense::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                                $number      = $expense ? (++$expense->number) : 1;
+                                return ($get('accounting_auto') == 'auto') ? $number : '';
                             })
                             ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                                return $rule->where('deleted_at', null);
+                                return $rule
+                                ->where('company_id', auth('company')->user()->id) // شرط company_id
+                                ->where('deleted_at', null); //
                             })
                             ->live()
                             ->maxLength(255),
@@ -277,7 +283,7 @@ class ExpenseResource extends Resource
                                             ->required(),
                                         Forms\Components\Select::make('bank')
                                             ->label('بانک')
-                                            ->options(Bank::all()->pluck('name', 'name')->toArray())
+                                            ->options(Bank::where('company_id',auth('company')->user()->id)->pluck('name', 'name')->toArray())
                                             ->required()
                                             ->suffixAction(
                                                 Forms\Components\Actions\Action::make('add_bank')

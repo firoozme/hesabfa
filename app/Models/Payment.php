@@ -4,6 +4,7 @@ namespace App\Models;
 use App\Models\Account;
 use App\Models\Expense;
 use App\Models\Transaction;
+use App\Models\Subscription;
 use App\Traits\LogsActivity;
 use App\Models\AccountingDocument;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Filament\Notifications\Notification;
 class Payment extends Model
 {
     use LogsActivity;
-    protected $fillable = ['invoice_id', 'paymentable_type', 'paymentable_id', 'amount'];
+    protected $fillable = ['invoice_id', 'paymentable_type', 'paymentable_id', 'amount','type'];
 
     public function invoice()
     {
@@ -56,6 +57,7 @@ class Payment extends Model
                 'date' => now(),
                 'description' => 'پرداخت فاکتور شماره ' . $invoice->number,
                 'company_id' => auth()->user('company')->id,
+                'invoice_id'      =>  $invoice->id
             ]);
                 // dd($document);
                 // "reference" => "PAY-INV-19555-1740995863"
@@ -131,4 +133,5 @@ class Payment extends Model
     {
         return verta($this->created_at)->format('Y/m/d');
     }
+ 
 }

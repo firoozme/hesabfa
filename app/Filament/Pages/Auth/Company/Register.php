@@ -2,29 +2,30 @@
 
 namespace App\Filament\Pages\Auth\Company;
 
-use Exception;
+use Carbon\Carbon;
+use App\Models\Plan;
+use App\Models\Store;
 use App\Models\Company;
+use App\Models\OtpCode;
 use Filament\Forms\Form;
+use App\Models\Subscription;
 use Filament\Actions\Action;
+use App\Models\CompanySetting;
 use Filament\Facades\Filament;
 use Filament\Pages\SimplePage;
-use Filament\Actions\ActionGroup;
-use Illuminate\Auth\SessionGuard;
-use Filament\Events\Auth\Registered;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\ProductCategory;
+use Database\Seeders\TaxSeeder;
+use App\Events\CompanyRegistered;
+use Database\Seeders\BanksTableSeeder;
+use Database\Seeders\ProductTypeSeeder;
+use Database\Seeders\ProductUnitSeeder;
 use Filament\Forms\Components\Component;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Illuminate\Auth\EloquentUserProvider;
-use Illuminate\Validation\Rules\Password;
-use Illuminate\Contracts\Support\Htmlable;
-use Filament\Notifications\Auth\VerifyEmail;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Validation\ValidationException;
 use DanHarrin\LivewireRateLimiting\WithRateLimiting;
 use Filament\Pages\Concerns\InteractsWithFormActions;
 use Filament\Pages\Concerns\CanUseDatabaseTransactions;
-use Filament\Http\Responses\Auth\Contracts\RegistrationResponse;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 
 /**
@@ -36,241 +37,251 @@ class Register extends SimplePage
     use InteractsWithFormActions;
     use WithRateLimiting;
 
-    /**
-     * @var view-string
-     */
     protected static string $view = 'filament.pages.auth.Company.register';
 
-    /**
-     * @var array<string, mixed> | null
-     */
     public ?array $data = [];
+    public ?string $mobile = null;
+    public bool $canResend = false;
+    public int $resendTimer = 60;
 
-    protected string $userModel;
-
-    public function mount(): void
+    public function mount()
     {
+        if (!session('mobile')) {
+            return redirect('/company/login');
+        }
+
+        $this->mobile = session('mobile');
+        $this->form->fill([
+            'mobile' => session('mobile'),
+        ]);
+
         if (Filament::auth()->check()) {
             redirect()->intended(Filament::getUrl());
         }
 
         $this->callHook('beforeFill');
-
         $this->form->fill();
-
         $this->callHook('afterFill');
-    }
-
-    public function register(): ?RegistrationResponse
-    {
-        try {
-            $this->rateLimit(2);
-        } catch (TooManyRequestsException $exception) {
-            $this->getRateLimitedNotification($exception)?->send();
-
-            return null;
-        }
-
-        $user = $this->wrapInDatabaseTransaction(function () {
-            $this->callHook('beforeValidate');
-
-            $data = $this->form->getState();
-
-            $this->callHook('afterValidate');
-
-            $data = $this->mutateFormDataBeforeRegister($data);
-
-            $this->callHook('beforeRegister');
-
-            $user = $this->handleRegistration($data);
-
-            $this->form->model($user)->saveRelationships();
-
-            $this->callHook('afterRegister');
-
-            return $user;
-        });
-
-        event(new Registered($user));
-
-        $this->sendEmailVerificationNotification($user);
-
-        Filament::auth()->login($user);
-
-        session()->regenerate();
-
-        return app(RegistrationResponse::class);
-    }
-
-    protected function getRateLimitedNotification(TooManyRequestsException $exception): ?Notification
-    {
-        return Notification::make()
-            ->title(__('filament-panels::pages/auth/register.notifications.throttled.title', [
-                'seconds' => $exception->secondsUntilAvailable,
-                'minutes' => $exception->minutesUntilAvailable,
-            ]))
-            ->body(array_key_exists('body', __('filament-panels::pages/auth/register.notifications.throttled') ?: []) ? __('filament-panels::pages/auth/register.notifications.throttled.body', [
-                'seconds' => $exception->secondsUntilAvailable,
-                'minutes' => $exception->minutesUntilAvailable,
-            ]) : null)
-            ->danger();
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    protected function handleRegistration(array $data): Model
-    {
-        return $this->getUserModel()::create($data);
-    }
-
-    protected function sendEmailVerificationNotification(Model $user): void
-    {
-        if (! $user instanceof MustVerifyEmail) {
-            return;
-        }
-
-        if ($user->hasVerifiedEmail()) {
-            return;
-        }
-
-        if (! method_exists($user, 'notify')) {
-            $userClass = $user::class;
-
-            throw new Exception("Model [{$userClass}] does not have a [notify()] method.");
-        }
-
-        $notification = app(VerifyEmail::class);
-        $notification->url = Filament::getVerifyEmailUrl($user);
-
-        $user->notify($notification);
     }
 
     public function form(Form $form): Form
     {
-        return $form;
-    }
-
-    /**
-     * @return array<int | string, string | Form>
-     */
-    protected function getForms(): array
-    {
-        return [
-            'form' => $this->form(
-                $this->makeForm()
-                    ->schema([
-                        $this->getFirstnameFormComponent(),
-                        $this->getLastnameFormComponent(),
-                        $this->getMobileFormComponent(),
-                        $this->getPasswordFormComponent(),
-                        $this->getPasswordConfirmationFormComponent(),
-                    ])
-                    ->statePath('data'),
-            ),
-        ];
+        return $form->schema([
+            $this->getMobileFormComponent(),
+            $this->getFirstnameFormComponent(),
+            $this->getLastnameFormComponent(),
+            $this->getOTPFormComponent(),
+        ])->statePath('data');
     }
 
     protected function getFirstnameFormComponent(): Component
     {
         return TextInput::make('firstname')
-            ->label(__('filament-panels::pages/auth/register.form.firstname.label'))
+            ->label('نام')
             ->required()
             ->maxLength(255)
             ->autofocus();
     }
+
     protected function getLastnameFormComponent(): Component
     {
         return TextInput::make('lastname')
-            ->label(__('filament-panels::pages/auth/register.form.lastname.label'))
+            ->label('نام خانوادگی')
             ->required()
-            ->maxLength(255)
-            ->autofocus();
+            ->maxLength(255);
     }
 
     protected function getMobileFormComponent(): Component
     {
         return TextInput::make('mobile')
-            ->label(__('filament-panels::pages/auth/register.form.mobile.label'))
+            ->label('شماره موبایل')
             ->required()
-            ->maxLength(255)
-            ->unique($this->getUserModel());
+            ->disabled()
+            ->default($this->mobile);
     }
 
-    protected function getPasswordFormComponent(): Component
+    protected function getOTPFormComponent(): Component
     {
-        return TextInput::make('password')
-            ->label(__('filament-panels::pages/auth/register.form.password.label'))
-            ->password()
-            ->revealable(filament()->arePasswordsRevealable())
-            ->required()
-            ->rule(Password::default())
-            ->dehydrateStateUsing(fn ($state) => Hash::make($state))
-            ->same('passwordConfirmation')
-            ->validationAttribute(__('filament-panels::pages/auth/register.form.password.validation_attribute'));
+        return TextInput::make('otp_code')
+            ->label('کد دریافتی')
+            ->required();
     }
 
-    protected function getPasswordConfirmationFormComponent(): Component
-    {
-        return TextInput::make('passwordConfirmation')
-            ->label(__('filament-panels::pages/auth/register.form.password_confirmation.label'))
-            ->password()
-            ->revealable(filament()->arePasswordsRevealable())
-            ->required()
-            ->dehydrated(false);
-    }
-
-    public function loginAction(): Action
-    {
-        return Action::make('login')
-            ->link()
-            ->label(__('filament-panels::pages/auth/register.actions.login.label'))
-            ->url(filament()->getLoginUrl());
-    }
-
-    protected function getUserModel(): string
-    {
-        return Company::class;
-    }
-
-    public function getTitle(): string | Htmlable
-    {
-        return __('filament-panels::pages/auth/register.title');
-    }
-
-    public function getHeading(): string | Htmlable
-    {
-        return __('filament-panels::pages/auth/register.heading');
-    }
-
-    /**
-     * @return array<Action | ActionGroup>
-     */
     protected function getFormActions(): array
     {
         return [
-            $this->getRegisterFormAction(),
+            Action::make('register')
+                ->label('ثبت نام')
+                ->submit('register')
+                ->extraAttributes(['class' => 'w-full']),
+            Action::make('resend')
+                ->label('ارسال دوباره کد')
+                ->action('resendOtp')
+                ->disabled(fn () => !$this->canResend)
+                ->extraAttributes(['class' => 'w-full']),
         ];
     }
 
-    public function getRegisterFormAction(): Action
+    public function getTitle(): string
     {
-        return Action::make('register')
-            ->label(__('filament-panels::pages/auth/register.form.actions.register.label'))
-            ->submit('register');
+        return 'ثبت نام';
     }
 
-    protected function hasFullWidthFormActions(): bool
+    public function register()
     {
-        return true;
+        try {
+            $this->rateLimit(5);
+        } catch (TooManyRequestsException $exception) {
+            $this->getRateLimitedNotification($exception)?->send();
+            return;
+        }
+
+        $data = $this->form->getState();
+
+        // اعتبارسنجی شماره موبایل
+        if (!preg_match('/^09\d{9}$/', $this->mobile)) {
+            throw ValidationException::withMessages([
+                'data.mobile' => 'شماره موبایل وارد شده معتبر نیست',
+            ]);
+        }
+
+        $exist_company = Company::where('mobile', $this->mobile)->first();
+        if ($exist_company) {
+            throw ValidationException::withMessages([
+                'data.mobile' => 'این شماره موبایل قبلا ثبت شده است',
+            ]);
+        }
+
+        // اعتبارسنجی OTP
+        $otp = OtpCode::where('mobile', $this->mobile)
+            ->where('otp_code', $data['otp_code'])
+            ->where('expires_at', '>=', Carbon::now())
+            ->where('is_used', false)
+            ->first();
+
+        if (!$otp) {
+            throw ValidationException::withMessages([
+                'data.otp_code' => ['کد یک‌بارمصرف نامعتبر است یا منقضی شده است.'],
+            ]);
+        }
+
+        // علامت‌گذاری کد به‌عنوان استفاده‌شده
+        $otp->update(['is_used' => true]);
+
+        $validated = $this->validate([
+            'data.mobile' => 'required|digits:11',
+            'data.firstname' => 'required',
+            'data.lastname' => 'required',
+        ], [
+            'data.mobile.required' => 'وارد کردن شماره موبایل الزامی است.',
+            'data.mobile.digits' => 'شماره موبایل باید دقیقاً ۱۱ رقم باشد.',
+            'data.firstname.required' => 'وارد کردن نام الزامی است.',
+            'data.lastname.required' => 'وارد کردن نام خانوادگی الزامی است.',
+        ]);
+
+        // Company Creation
+        $company = Company::create([
+            'mobile' => $this->mobile,
+            'firstname' => $data['firstname'],
+            'lastname' => $data['lastname'],
+        ]);
+
+        // Store Creation
+        Store::create([
+            'title' => 'انبار من',
+            'company_id' => $company->id,
+            'address' => 'تهران',
+            'phone_number' => '0',
+            'is_default' => true,
+        ]);
+
+        app(BanksTableSeeder::class)->runWithCompanyId($company->id);
+        app(ProductTypeSeeder::class)->runWithCompanyId($company->id);
+        app(ProductUnitSeeder::class)->runWithCompanyId($company->id);
+        app(TaxSeeder::class)->runWithCompanyId($company->id);
+
+        // Set Default Plan
+        $defaultPlan = Plan::where('is_default', true)->first();
+        // if ($defaultPlan) {
+        //     Subscription::create([
+        //         'company_id' => $company->id,
+        //         'plan_id' => $defaultPlan->id,
+        //         'status' => 'active',
+        //         'starts_at' => now(),
+        //         'ends_at' => now()->addDays($defaultPlan->duration),
+        //     ]);
+        // }
+
+        // Company Setting
+        CompanySetting::create([
+            'menu_position'=>'top',
+            'company_id'=> $company->id,
+        ]);
+
+        // Product Category
+        ProductCategory::create([
+            'title'=>'گروه بندی محصول پیشفرض',
+            'company_id'=> $company->id,
+        ]);
+
+        // لاگین شرکت
+        auth()->guard('company')->login($company);
+
+        Notification::make()
+            ->title('ثبت‌نام موفق')
+            ->body('ثبت‌نام شما با موفقیت انجام شد.')
+            ->success()
+            ->send();
+
+        // هدایت به داشبورد
+        return redirect()->intended(Filament::getUrl());
     }
 
-    /**
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    protected function mutateFormDataBeforeRegister(array $data): array
+    public function resendOtp(KavenegarService $smsService)
     {
-        return $data;
+        try {
+            $this->rateLimit(3, 60);
+        } catch (TooManyRequestsException $exception) {
+            Notification::make()
+                ->title('خطا')
+                ->body('لطفاً 60 ثانیه صبر کنید و دوباره تلاش کنید.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+       // ایجاد کد OTP جدید
+       $otpCode = $this->generateOtpCode($this->mobile);
+
+        // اینجا باید کد ارسال SMS را پیاده‌سازی کنید
+        // مثلاً: SmsService::send($this->mobile, "کد تایید شما: $otpCode");
+        $smsService->send($this->mobile, "کد تایید شما: $otpCode->otp_code");
+        Notification::make()
+            ->title('کد جدید ارسال شد')
+            ->body('کد تایید جدید به شماره شما ارسال شد.')
+            ->success()
+            ->send();
+
+        // ریست تایمر و غیرفعال کردن دکمه
+        $this->canResend = false;
+        $this->resendTimer = 60;
+        $this->dispatch('reset-timer');
+    }
+
+    protected function generateOtpCode(string $mobile): OtpCode
+    {
+        // حذف کدهای قدیمی برای این شماره موبایل
+        OtpCode::where('mobile', $mobile)->delete();
+
+        // تولید کد 6 رقمی تصادفی
+        $code = mt_rand(100000, 999999);
+
+        // ذخیره کد OTP در دیتابیس
+        return OtpCode::create([
+            'mobile' => $mobile,
+            'otp_code' => $code,
+            'expires_at' => Carbon::now()->addMinutes(5),
+            'is_used' => false,
+        ]);
     }
 }

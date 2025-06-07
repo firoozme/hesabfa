@@ -11,6 +11,7 @@ use Filament\Tables\Table;
 use App\Models\Transaction;
 use Filament\Support\RawJs;
 use Filament\Resources\Resource;
+use Filament\Tables\Filters\Filter;
 use Illuminate\Contracts\View\View;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
@@ -19,7 +20,9 @@ use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Components\Textarea;
 use Illuminate\Validation\Rules\Unique;
 use Filament\Forms\Components\TextInput;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Columns\Summarizers\Sum;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -45,9 +48,9 @@ class TransferResource extends Resource
                     ->default('auto')
                     ->live()
                     ->afterStateUpdated(function ($state, callable $set) {
-                        $transfer = Transfer::withTrashed()->latest()->first();
-                        $id = $transfer ? (++$transfer->id) : 1;
-                        $state === 'auto' ? $set('reference_number', $id) : $set('reference_number', '');
+                        $transfer = Transfer::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                        $reference_number = $transfer ? (++$transfer->reference_number) : 1;
+                        $state === 'auto' ? $set('reference_number', $reference_number) : $set('reference_number', '');
                     })
                     ->inline()
                     ->inlineLabel(false),
@@ -57,12 +60,16 @@ class TransferResource extends Resource
                     ->label('کد حسابداری')
                     ->required()
                     ->afterStateHydrated(function (Get $get, callable $set) {
-                        $transfer = Transfer::withTrashed()->latest()->first();
-                        $id = $transfer ? (++$transfer->id) : 1;
-                        $get('accounting_auto') == 'auto' ? $set('reference_number', $id) : $set('reference_number', '');
+                        $transfer = Transfer::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                        $reference_number = $transfer ? (++$transfer->reference_number) : 1;
+                        $get('accounting_auto') == 'auto' ? $set('reference_number', $reference_number) : $set('reference_number', '');
                     })
                     ->readOnly(fn ($get) => $get('accounting_auto') === 'auto')
-                    ->unique(ignoreRecord: true, modifyRuleUsing: fn (Unique $rule) => $rule->where('deleted_at', null))
+                    ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
+                        return $rule
+->where('company_id', auth('company')->user()->id) // شرط company_id
+->where('deleted_at', null); //
+                    })
                     ->live()
                     ->maxLength(255),
 
@@ -215,10 +222,79 @@ class TransferResource extends Resource
                     ->since()
                     ->sortable(),
             ])
-            ->filters([])
+            ->filters([
+              
+                // فیلتر تاریخ انتقال
+                Filter::make('transfer_date')
+                    ->form([
+                        DatePicker::make('from_date')
+                            ->label('از تاریخ انتقال')
+                            ->jalali()
+                            ->placeholder('انتخاب تاریخ'),
+                        DatePicker::make('to_date')
+                            ->label('تا تاریخ انتقال')
+                            ->jalali()
+                            ->placeholder('انتخاب تاریخ'),
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $query
+                            ->when($data['from_date'], fn($q) => $q->whereDate('transfer_date', '>=', $data['from_date']))
+                            ->when($data['to_date'], fn($q) => $q->whereDate('transfer_date', '<=', $data['to_date']));
+                    }),
+
+                // فیلتر مبلغ انتقال
+                Filter::make('amount')
+                    ->form([
+                        TextInput::make('min_amount')
+                            ->label('حداقل مبلغ')
+                            ->numeric()
+                            ->postfix('ریال'),
+                        TextInput::make('max_amount')
+                            ->label('حداکثر مبلغ')
+                            ->numeric()
+                            ->postfix('ریال'),
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $query
+                            ->when($data['min_amount'], fn($q) => $q->where('amount', '>=', $data['min_amount']))
+                            ->when($data['max_amount'], fn($q) => $q->where('amount', '<=', $data['max_amount']));
+                    }),
+
+                // فیلتر نوع حساب مبدأ
+                SelectFilter::make('source_type')
+                    ->label('نوع حساب مبدأ')
+                    ->options([
+                        'App\Models\CompanyBankAccount' => 'بانک',
+                        'App\Models\Fund' => 'صندوق',
+                        'App\Models\PettyCash' => 'تنخواه',
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $data['value']
+                            ? $query->where('source_type', $data['value'])
+                            : $query;
+                    }),
+
+                // فیلتر نوع حساب مقصد
+                SelectFilter::make('destination_type')
+                    ->label('نوع حساب مقصد')
+                    ->options([
+                        'App\Models\CompanyBankAccount' => 'بانک',
+                        'App\Models\Fund' => 'صندوق',
+                        'App\Models\PettyCash' => 'تنخواه',
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $data['value']
+                            ? $query->where('destination_type', $data['value'])
+                            : $query;
+                    }),
+
+                
+
+              
+            ], layout: FiltersLayout::AboveContent)
             ->actions([
                 Tables\Actions\Action::make('detail')
-                    ->label('سند حسابداری')
+                    ->label('گردش')
                     ->color('warning')
                     ->icon('heroicon-o-eye')
                     ->modalSubmitAction(false)

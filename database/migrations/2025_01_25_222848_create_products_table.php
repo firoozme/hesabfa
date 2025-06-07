@@ -47,9 +47,6 @@ return new class extends Migration
             // Purchase tax rate (stored with 2 decimal places)
             $table->decimal('purchase_tax', 5, 2);
 
-            // Product type (can be either 'Goods' or 'Services')
-            $table->enum('type', ['Goods', 'Services']);
-
             // Foreign key for product_unit_id, relates to product_units table
             $table->foreignId('product_unit_id')->constrained();
 

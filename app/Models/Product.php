@@ -6,13 +6,18 @@ use App\Models\Tax;
 use App\Models\Store;
 use App\Models\Company;
 use App\Models\Product;
+use App\Models\Discount;
 use App\Models\PriceList;
+use App\Models\ProductType;
 use App\Models\ProductUnit;
+use App\Models\StoreProduct;
 use App\Traits\LogsActivity;
 use App\Models\ProductCategory;
 use App\Models\StoreTransaction;
+use Illuminate\Support\Facades\Log;
 use App\Models\StoreTransactionItem;
 use Illuminate\Database\Eloquent\Model;
+use Filament\Notifications\Notification;
 use App\Models\Scopes\ActiveProductScope;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,7 +31,9 @@ class Product extends Model
     protected function casts(): array
     {
         return [
-            'barcode' => 'array',
+            'barcode'        => 'array',
+            'selling_price'  => 'integer',
+            'purchase_price' => 'integer',
         ];
     }
     public function unit(): BelongsTo
@@ -35,7 +42,11 @@ class Product extends Model
     }
     public function tax(): BelongsTo
     {
-        return $this->belongsTo(Tax::class, 'tax_id');
+        return $this->belongsTo(Tax::class, 'tax_id')->where('company_id',auth('company')->user()->id);
+    }
+    public function type(): BelongsTo
+    {
+        return $this->belongsTo(ProductType::class, 'product_type_id');
     }
     public function getCreatedAtJalaliAttribute()
     {
@@ -76,38 +87,104 @@ class Product extends Model
     {
         parent::boot();
 
+        // بررسی پس از ایجاد محصول
         static::created(function ($product) {
 
-            // dd($product->inventory, request()->input('selected_store_id') );
-            // اگه موجودی اولیه داره
-            // if ($product->inventory > 0) {
-            //     $defaultStore = Store::where('is_default', true)->first();
-            //     $selectedStoreId = request()->input('selected_store_id');
+            // if Import Porduct with Excel
+            if ($product->method == 'import') {
+                $storeId   = $product->temp;
+                $productId = $product->id;
+                $quantity  = $product->inventory;
+                // DB::table('store_product')->insert([
+                //     'store_id' => $storeId,
+                //     'product_id' => $productId,
+                //     'quantity' => $quantity,
+                // ]);
+                $transaction = StoreTransaction::create([
+                    'store_id'         => $storeId,
+                    'type'             => 'entry',
+                    'date'             => Carbon::today(),
+                    'reference'        => 'INIT' . $productId,
+                    'destination_type' => Product::class,
+                    'destination_id'   => $productId,
+                ]);
 
-            //     $storeId = $defaultStore ? $defaultStore->id : ($selectedStoreId ?: null);
-            //     if ($storeId) {
-            //         // ثبت تراکنش
-            //         $transaction = StoreTransaction::create([
-            //             'store_id' => $storeId,
-            //             'type' => 'in',
-            //             'date' => Carbon::today(),
-            //             'reference' => 'initial_stock_product_' . $product->id,
-            //             'destination_type' => Product::class,
-            //             'destination_id' => $product->id,
-            //         ]);
+                // ثبت آیتم تراکنش
+                StoreTransactionItem::create([
+                    'store_transaction_id' => $transaction->id,
+                    'product_id'           => $productId,
+                    'quantity'             => $quantity,
 
-            //         // ثبت آیتم تراکنش
-            //         $transaction->items()->create([
-            //             'product_id' => $product->id,
-            //             'quantity' => $product->inventory,
-            //         ]);
+                ]);
 
-            //         // به‌روزرسانی موجودی در جدول store_product
-            //         $product->stores()->syncWithoutDetaching([
-            //             $storeId => ['quantity' => $product->inventory],
-            //         ]);
-            //     }
-            // }
+            }
+           
         });
+        
+       
+        // بررسی قبل از حذف محصول
+        static::deleting(function ($product) {
+            // بررسی استفاده محصول در جدول invoice_items
+            if ($product->invoiceItems()->exists()) {
+                Notification::make()
+                    ->title('خطا')
+                    ->body('این محصول در فاکتورها استفاده شده است و نمی‌توان آن را حذف کرد.')
+                    ->danger()
+                    ->send();
+                return false; // جلوگیری از حذف
+            }
+
+            // اگر محصول در هیچ فاکتوری استفاده نشده باشد، حذف نرم انجام می‌شود
+            Log::info("محصول {$product->name} با موفقیت حذف شد.", [
+                'product_id' => $product->id,
+            ]);
+        });
+    }
+    public function invoiceItems()
+    {
+        return $this->hasMany(InvoiceItem::class, 'product_id');
+    }
+    public function discount()
+    {
+        return $this->belongsTo(Discount::class);
+    }
+
+    public function getDiscountedPriceAttribute()
+    {
+        if ($this->discount && $this->discount->isActive()) {
+            if ($this->discount->type === 'percentage') {
+                return (int)intval(str_replace(',', '', $this->selling_price)) * (1 - $this->discount->value / 100);
+            } else {
+                // dd((int)$this->discount->value);
+                $discount_value = (float) str_replace(',', '', $this->discount->value);
+                $selling_price = (float) str_replace(',', '', $this->selling_price);
+                return max(0, $selling_price - $discount_value);
+            }
+        }
+
+        return $this->selling_price;
+    }
+
+    public function setSellingPriceAttribute($value)
+    {
+        $this->attributes['selling_price'] = intval(str_replace(',', '', $value));
+    }
+    public function setPurchasePriceAttribute($value)
+    {
+        $this->attributes['purchase_price'] = intval(str_replace(',', '', $value));
+    }
+    public function getSellingPriceAttribute($value)
+    {
+        return number_format($value);
+    }
+    public function getPurchasePriceAttribute($value)
+    {
+        return number_format($value);
+
+    }
+
+    public function getInventoryAttribute(){
+        $count = StoreProduct::where('product_id', $this->id)->sum('quantity');
+        return $count;
     }
 }

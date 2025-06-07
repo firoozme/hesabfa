@@ -27,7 +27,9 @@ class InstallmentStatusReport extends Page implements HasTable
     {
         return $table
 		 ->emptyStateHeading('اقساطی وجود ندارد')
-            ->query(Installment::query())
+         ->query(Installment::query()->whereHas('installmentSale.invoice', function ($query) {
+            $query->where('company_id', auth()->user('company')->id);
+        }))
             ->columns([
                 Tables\Columns\TextColumn::make('installmentSale.invoice.title')
                     ->label('فاکتور')
@@ -65,6 +67,7 @@ class InstallmentStatusReport extends Page implements HasTable
                     ->label('فاکتور')
                     ->options(function () {
                         return Invoice::where('type', 'sale')
+                        ->where('company_id', auth()->user('company')->id)
                             ->pluck('number', 'id')
                             ->toArray();
                     })
@@ -80,7 +83,7 @@ class InstallmentStatusReport extends Page implements HasTable
                 Tables\Filters\SelectFilter::make('person_id')
                     ->label('خریدار')
                     ->options(function () {
-                        return \App\Models\Person::pluck('fullname', 'id')->toArray(); // فرض بر وجود مدل Customer
+                        return \App\Models\Person::where('company_id', auth()->user('company')->id)->pluck('fullname', 'id')->toArray(); // فرض بر وجود مدل Customer
                     })
                     ->query(function ($query, $data) {
                         if ($data['value']) {

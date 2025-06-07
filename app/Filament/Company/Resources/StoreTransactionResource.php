@@ -14,6 +14,8 @@ use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use App\Models\StoreTransactionItem;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\Rules\Unique;
+use Filament\Tables\Enums\FiltersLayout;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Company\Resources\StoreTransactionResource\Pages;
@@ -24,11 +26,18 @@ class StoreTransactionResource extends Resource
     protected static ?string $model = StoreTransaction::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
-    protected static ?string $navigationLabel = 'تراکنش‌های انبار';
+    protected static ?string $navigationLabel = 'حواله ها';
     protected static ?string $navigationGroup = 'انبارداری';
     protected static ?string $label = '';
-    protected static ?string $pluralLabel = 'تراکنش های انبار';
+    protected static ?string $pluralLabel = 'حواله ها';
 
+    public static function getEloquentQuery(): Builder
+{
+    return parent::getEloquentQuery()
+        ->whereHas('store', function (Builder $query) {
+            $query->where('company_id', auth()->user('company')->id);
+        });
+}
     public static function form(Forms\Form $form): Forms\Form
     {
         return $form
@@ -49,7 +58,9 @@ class StoreTransactionResource extends Resource
                     ->required(),
                 Forms\Components\TextInput::make('reference')
                     ->label('شماره حواله')
-                    ->unique()
+                    ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
+                        return $rule->where('deleted_at', null);
+                    })
                     ->required(),
                 Forms\Components\DatePicker::make('date')
                     ->label('تاریخ')
@@ -75,6 +86,7 @@ class StoreTransactionResource extends Resource
                 Forms\Components\Repeater::make('items')
                     ->label('محصولات')
                     ->relationship('items')
+                    ->columnSpanFull()
                     ->schema([
                         Forms\Components\Select::make('product_id')
                             ->label('محصول')
@@ -130,12 +142,13 @@ class StoreTransactionResource extends Resource
             ->defaultSort('created_at','desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('type')
+                    ->label('نوع')
                     ->options([
                         'entry' => 'ورود',
                         'exit' => 'خروج',
                         'transfer' => 'انتقال',
                     ]),
-            ])
+            ], layout: FiltersLayout::AboveContent)
             ->actions([
                 Action::make('pdf')
                 ->label('خروجی PDF')
@@ -156,7 +169,7 @@ class StoreTransactionResource extends Resource
         return [
             'index' => Pages\ListStoreTransactions::route('/'),
             'create' => Pages\CreateStoreTransaction::route('/create'),
-            // 'edit' => Pages\EditStoreTransaction::route('/{record}/edit'),
+            'edit' => Pages\EditStoreTransaction::route('/{record}/edit'),
         ];
     }
     protected static ?int $navigationSort = 8;

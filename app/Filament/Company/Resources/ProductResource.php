@@ -1,57 +1,48 @@
 <?php
-
 namespace App\Filament\Company\Resources;
 
 use stdClass;
 use App\Models\Tax;
 use Filament\Forms;
 use Filament\Tables;
-use App\Models\Store;
 use App\Models\Product;
+use App\Models\Discount;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
+use App\Models\ProductType;
 use App\Models\ProductUnit;
 use Filament\Support\RawJs;
+use App\Models\StoreProduct;
 use App\Models\ProductCategory;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Resources\Resource;
 use Filament\Forms\Components\Select;
-use Illuminate\Support\Facades\Blade;
 use Filament\Tables\Contracts\HasTable;
-use Illuminate\Database\Eloquent\Model;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\ImageColumn;
-use App\Filament\Exports\ProductExporter;
-use App\Filament\Imports\ProductImporter;
+use Filament\Tables\Enums\FiltersLayout;
 use App\Models\Scopes\ActiveProductScope;
 use Filament\Forms\Components\FileUpload;
-use Filament\Tables\Actions\ExportAction;
-use Filament\Tables\Actions\ImportAction;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Filters\TernaryFilter;
-use EightyNine\ExcelImport\ExcelImportAction;
+use Filament\Tables\Columns\TextInputColumn;
 use Filament\Forms\Components\Actions\Action;
-use Filament\Tables\Actions\ExportBulkAction;
-use Filament\Actions\Exports\Enums\ExportFormat;
 use CodeWithDennis\FilamentSelectTree\SelectTree;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Forms\Components\Actions\Action as Act;
 use App\Filament\Company\Resources\ProductResource\Pages;
-use App\Filament\Company\Resources\ProductResource\RelationManagers;
-use Joaopaulolndev\FilamentPdfViewer\Forms\Components\PdfViewerField;
 
 class ProductResource extends Resource
 {
     protected static ?string $model = Product::class;
 
     protected static ?string $navigationLabel = 'محصول';
-    protected static ?string $pluralLabel = 'محصولات';
-    protected static ?string $label = 'محصولات';
+    protected static ?string $pluralLabel     = 'محصولات';
+    protected static ?string $label           = 'محصولات';
     protected static ?string $navigationGroup = 'کالا و خدمات';
-    protected static ?int $navigationSort = 4;
-    protected static ?string $navigationIcon = 'heroicon-o-tag';
-
+    protected static ?int $navigationSort     = 4;
+    protected static ?string $navigationIcon  = 'heroicon-o-tag';
 
     public static function form(Form $form): Form
     {
@@ -83,8 +74,8 @@ class ProductResource extends Resource
                     ->mask(RawJs::make(<<<'JS'
                     $money($input)
                     JS))
-                    ->dehydrateStateUsing(function ($state) {
-                        return (float) str_replace(',', '', $state); // تبدیل رشته فرمت‌شده به عدد
+                    ->dehydrateStateUsing(function($state){
+                        return(float)str_replace(',','',$state);// تبدیل رشته فرمت‌شده به عدد
                     })
                     ->postfix('ریال'),
                 Forms\Components\TextInput::make('purchase_price')
@@ -92,9 +83,9 @@ class ProductResource extends Resource
                     ->mask(RawJs::make(<<<'JS'
                         $money($input)
                         JS))
-                        ->dehydrateStateUsing(function ($state) {
-                            return (float) str_replace(',', '', $state); // تبدیل رشته فرمت‌شده به عدد
-                        })
+                    ->dehydrateStateUsing(function($state){
+                        return(float)str_replace(',','',$state);// تبدیل رشته فرمت‌شده به عدد
+                    })
                     ->postfix('ریال'),
 
                 Forms\Components\TextInput::make('minimum_order')
@@ -125,25 +116,44 @@ class ProductResource extends Resource
                     ->numeric()
                     ->minValue(0)
                     ->postfix('درصد'),
-                Forms\Components\Select::make('type')
+                Forms\Components\Select::make('product_type_id')
                     ->label('نوع')
-                    ->options([
-                        'Goods' => 'کالا',
-                        'Services' => 'خدمات',
-                    ])
-                    ->required(),
-                    TextInput::make('inventory')
+                    ->options(ProductType::where('company_id',auth('company')->user()->id)->pluck('title','id')->all())
+                    ->required()
+                    ->suffixAction(
+                        Action::make('add_store')
+                            ->label('اضافه کردن واحد ')
+                            ->icon('heroicon-o-plus')
+                            ->modalHeading('ایجاد واحد ')
+                            ->action(function (array $data) {
+                                $unit = ProductType::create([
+                                    'title' => $data['title'],
+                                    'company_id' => auth('company')->user()->id
+                                ]);
+                                return $unit->id;
+                            })
+                            ->form([
+                                TextInput::make('title')
+                                    ->label('عنوان')
+                                    ->required(),
+                            ])
+                            ->after(function ($livewire) {
+                                $livewire->dispatch('refreshForm');
+                            })
+                    ),
+
+                TextInput::make('inventory')
                     ->label('موجودی اولیه')
                     ->numeric()
                     ->default(0)
                     ->minValue(0)
                     ->reactive()
-                    ->hidden(fn($context)=>$context==='edit')
+                    // ->hidden(fn($context) =fموجودی> $context === 'edit')
                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
                         $defaultStore = \App\Models\Store::where('is_default', true)->first();
-                        $storesExist = \App\Models\Store::exists();
+                        $storesExist  = \App\Models\Store::exists();
 
-                        if ($state > 0 && !$defaultStore && $storesExist) {
+                        if ($state > 0) {
                             $set('show_store_select', true);
                         } else {
                             $set('show_store_select', false);
@@ -151,14 +161,15 @@ class ProductResource extends Resource
                     }),
                 Select::make('selected_store_id')
                     ->label('انبار')
-                    ->hidden(fn($context)=>$context==='edit')
-                    ->options(fn() => \App\Models\Store::all()->pluck('title', 'id'))
-                    ->visible(fn($get) => $get('show_store_select'))
-                    ->required(fn($get) => $get('show_store_select')),
-                    
+                    // ->hidden(fn($context) => $context === 'edit')
+                    ->options(fn() => \App\Models\Store::all()->where('company_id', auth()->user('company')->id)->pluck('title', 'id'))
+                    // ->visible(fn($get) => $get('show_store_select'))
+                    // ->required(fn($get) => $get('show_store_select')),
+                    ->required(),
+
                 Forms\Components\Select::make('product_unit_id')
                     ->label('واحد شمارش')
-                    ->relationship('unit', 'name')
+                    ->options(ProductUnit::where('company_id',auth('company')->user()->id)->pluck('name','id')->all())
                     ->required()
                     ->suffixAction(
                         Act::make('add_unit')
@@ -166,7 +177,10 @@ class ProductResource extends Resource
                             ->icon('heroicon-o-plus') // آیکون دلخواه
                             ->modalHeading('ایجاد واحد جدید')
                             ->action(function (array $data) {
-                                $unit = ProductUnit::create(['name' => $data['name']]);
+                                $unit = ProductUnit::create([
+                                    'name' => $data['name'],
+                                    'company_id' => auth('company')->user()->id
+                                ]);
                                 return $unit->id; // برای آپدیت سلکت‌باکس
                             })
                             ->form([
@@ -183,9 +197,9 @@ class ProductResource extends Resource
                     ->label('نوع مالیات')
                     ->suffixAction(
                         Act::make('add_type')
-                            ->label('اضافه کردن واحد مالیات')
+                            ->label('اضافه کردن گروه جدید')
                             ->icon('heroicon-o-plus') // آیکون دلخواه
-                            ->modalHeading('ایجاد واحد مالیات')
+                            ->modalHeading('ایجاد گروه جدید')
                             ->action(function (array $data) {
                                 $unit = Tax::create(['title' => $data['title']]);
                                 return $unit->id; // برای آپدیت سلکت‌باکس
@@ -199,50 +213,131 @@ class ProductResource extends Resource
                                 $livewire->dispatch('refreshForm'); // رفرش فرم بعد از اضافه کردن
                             })
                     ),
+
                 SelectTree::make('product_category_id')
                     ->required()
-                    ->label('دسته پدر')
-                    ->relationship(
-                        'category',
-                        'title',
-                        'parent_id',
-                    )
+                    ->label('گروه بندی')
+                    ->relationship('category', 'title', 'parent_id', function ($query) {
+                        // اطمینان از فیلتر کردن دسته‌ها بر اساس company_id
+                        return $query->where('company_id', auth()->user('company')->id);
+                    })
                     ->enableBranchNode()
-                    ->placeholder('انتخاب دسته')
+                    ->placeholder('انتخاب گروه')
                     ->withCount()
                     ->searchable()
                     ->emptyLabel('بدون نتیجه')
                     ->suffixAction(
-                        Action::make('add_type')
-                            ->label('اضافه کردن واحد مالیات')
-                            ->icon('heroicon-o-plus') // آیکون دلخواه
-                            ->modalHeading('ایجاد واحد مالیات')
-                            ->action(function (array $data) {
-                                $unit = ProductCategory::create([
-                                    'title' => $data['title'],
-                                    'parent_id' => $data['parent_id'],
+                        Action::make('add_category')
+                            ->label('اضافه کردن گروه')
+                            ->icon('heroicon-o-plus')
+                            ->modalHeading('ایجاد گروه جدید')
+                            ->action(function (array $data, $livewire) {
+                                // ایجاد دسته جدید
+                                $category = ProductCategory::create([
+                                    'title'      => $data['title'],
+                                    'parent_id'  => $data['parent_id'],
+                                    'company_id' => auth()->user('company')->id,
                                 ]);
-                                return $unit->id; // برای آپدیت سلکت‌باکس
+
+                                // رفرش گزینه‌های SelectTree
+                                $livewire->dispatch('refreshComponent', [
+                                    'component' => 'select-tree.product_category_id',
+                                ]);
+
+                                // نمایش نوتیفیکیشن
+                                Notification::make()
+                                    ->title('موفقیت')
+                                    ->body('دسته جدید با موفقیت ایجاد شد.')
+                                    ->success()
+                                    ->send();
+
+                                // بازگشت ID دسته جدید برای به‌روزرسانی SelectTree
+                                return $category->id;
                             })
                             ->form([
                                 TextInput::make('title')
                                     ->label('عنوان')
                                     ->required(),
                                 SelectTree::make('parent_id')
-                                    ->label('دسته پدر')
-                                    ->relationship(
-                                        'category',
-                                        'title',
-                                        'parent_id',
-                                    )
+                                    ->label('گروه بندی')
+                                    ->relationship('category', 'title', 'parent_id', function ($query) {
+                                        return $query->where('company_id', auth('company')->user()->id);
+                                    })
                                     ->enableBranchNode()
-                                    ->placeholder('انتخاب دسته')
+                                    ->placeholder('انتخاب گروه')
                                     ->withCount()
                                     ->searchable()
                                     ->emptyLabel('بدون نتیجه'),
                             ])
+                    ),
+                Forms\Components\Select::make('discount_id')
+                    ->label('تخفیف')
+                    ->relationship('discount', 'name', fn(Builder $query) => $query->where('company_id', auth()->user('company')->id)->where('is_active', true))
+                    ->nullable()
+                    ->searchable()
+                    ->preload()
+                    ->suffixAction(
+                        Act::make('add_discount')
+                            ->label('ایجاد تخفیف جدید')
+                            ->icon('heroicon-o-ticket')
+                            ->modalHeading('ایجاد تخفیف جدید')
+                            ->action(function (array $data) {
+                                $discount = Discount::create([
+                                    'name'            => $data['name'],
+                                    'type'            => $data['type'],
+                                    'value'           => $data['value'],
+                                    'start_date'      => $data['start_date'],
+                                    'end_date'        => $data['end_date'],
+                                    'recurrence_rule' => $data['recurrence_rule'],
+                                    'is_active'       => $data['is_active'] ?? true,
+                                    'company_id'      => auth()->user('company')->id,
+                                ]);
+                                return $discount->id;
+                            })
+                            ->form([
+                                TextInput::make('name')
+                                    ->label('نام تخفیف')
+                                    ->required(),
+                                Select::make('type')
+                                    ->label('نوع تخفیف')
+                                    ->options([
+                                        'percentage' => 'درصدی',
+                                        'fixed'      => 'مقدار ثابت',
+                                    ])
+                                    ->required(),
+                                TextInput::make('value')
+                                    ->label('مقدار تخفیف')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->required()
+                                    ->suffix(fn($get) => $get('type') === 'percentage' ? 'درصد' : 'ریال'),
+                                Forms\Components\DateTimePicker::make('start_date')
+                                    ->label('تاریخ شروع')
+                                    ->nullable()
+                                    ->jalali(),
+                                Forms\Components\DateTimePicker::make('end_date')
+                                    ->label('تاریخ پایان')
+                                    ->nullable()
+                                    ->jalali(),
+                                    Select::make('recurrence_rule')
+                                    ->label('قانون تکرار')
+                                    ->options([
+                                        null               => 'هر روز',
+                                        'weekly_monday'    => 'هر دوشنبه',
+                                        'weekly_tuesday'   => 'هر سه‌شنبه',
+                                        'weekly_wednesday' => 'هر چهارشنبه',
+                                        'weekly_thursday'  => 'هر پنج‌شنبه',
+                                        'weekly_friday'    => 'هر جمعه',
+                                        'weekly_saturday'  => 'هر شنبه',
+                                        'weekly_sunday'    => 'هر یک‌شنبه',
+                                    ])
+                                    ->nullable(),
+                                Forms\Components\Toggle::make('is_active')
+                                    ->label('فعال')
+                                    ->default(true),
+                            ])
                             ->after(function ($livewire) {
-                                $livewire->dispatch('refreshForm'); // رفرش فرم بعد از اضافه کردن
+                                $livewire->dispatch('refreshForm');
                             })
                     ),
             ]);
@@ -251,7 +346,7 @@ class ProductResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-        ->query(Product::query()->where('company_id',auth()->user('company')->id))
+            ->query(Product::query()->where('company_id', auth()->user('company')->id))
             ->columns([
                 Tables\Columns\TextColumn::make('#')->state(
                     static function (HasTable $livewire, stdClass $rowLoop): string {
@@ -267,7 +362,6 @@ class ProductResource extends Resource
                     ->label('عکس ')
                     ->extraImgAttributes(['loading' => 'lazy'])
                     ->checkFileExistence(false)
-                    ->default(fn(Product $record) => file_exists(asset('upload/' . $record->image))  ?  asset('upload/' . $record->image) : asset('upload/photo_placeholder.png'))
                     ->disk('public'),
                 Tables\Columns\TextColumn::make('name')
                     ->label('عنوان')
@@ -281,20 +375,52 @@ class ProductResource extends Resource
                     ->label('بارکد')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('selling_price')
+                TextInputColumn::make('selling_price')
                     ->label('قیمت فروش')
-                    ->formatStateUsing(
-                        fn($state) =>
-                        number_format($state) . ' ریال'
-                    )
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('purchase_price')
+                    ->type('text')
+                    ->sortable()
+                    ->afterStateUpdated(function ($record, $state) {
+
+                        // تأییدیه بعد از ذخیره
+                        Notification::make()
+                            ->title('موفقیت')
+                            ->body('قیمت فروش با موفقیت به‌روزرسانی شد.')
+                            ->success()
+                            ->send();
+                    })
+                    ->rules(['required', 'min:0'])
+                    ->extraAttributes([
+                        'class' => 'with-suffix',
+                    ])
+                    ->extraInputAttributes([
+                        'style' => 'text-align: left; direction: ltr; padding-left: 50px;',
+                    ])
+                    ->mask(RawJs::make(<<<'JS'
+                    $money($input)
+                JS)),
+                TextInputColumn::make('purchase_price')
                     ->label('قیمت خرید')
-                    ->formatStateUsing(
-                        fn($state) =>
-                        number_format($state) . ' ریال'
-                    )
-                    ->sortable(),
+                    ->type('text')
+                    ->sortable()
+                    ->afterStateUpdated(function($record,$state){
+
+                        // تأییدیه بعد از ذخیره
+                        Notification::make()
+                            ->title('موفقیت')
+                            ->body('قیمت خرید با موفقیت به‌روزرسانی شد.')
+                            ->success()
+                            ->send();
+                    })
+                    ->rules(['required', 'min:0'])
+                    ->extraAttributes([
+                        'class' => 'with-suffix',
+                    ])
+                    ->extraInputAttributes([
+                        'style' => 'text-align: left; direction: ltr; padding-left: 50px;',
+                    ])
+                    ->mask(RawJs::make(<<<'JS'
+                    $money($input)
+                JS)),
                 Tables\Columns\TextColumn::make('inventory')
                     ->label('موجودی')
                     ->sortable(),
@@ -302,29 +428,29 @@ class ProductResource extends Resource
                     ->label('واحد شمارش'),
                 Tables\Columns\TextColumn::make('minimum_order')
                     ->label('حداقل سفارش')
-                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->toggleable(isToggledHiddenByDefault:true)
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('lead_time')
                     ->label('زمان انتظار')
-                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->toggleable(isToggledHiddenByDefault:true)
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('reorder_point')
                     ->label('نقطه سفارش')
                     ->default(10)
                     ->numeric()
-                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->toggleable(isToggledHiddenByDefault:true)
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('sales_tax')
                     ->label('مالیات فروش')
-                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->toggleable(isToggledHiddenByDefault:true)
                     ->default(0)
                     ->numeric()
                     ->formatStateUsing(
-                        fn($state) =>
-                        number_format($state) . ' درصد'
+                        fn($state)=>
+                        number_format($state).' درصد'
                     )
                     ->sortable(),
                 Tables\Columns\TextColumn::make('purchase_tax')
@@ -332,15 +458,13 @@ class ProductResource extends Resource
                     ->default(0)
                     ->numeric()
                     ->formatStateUsing(
-                        fn($state) =>
-                        number_format($state) . ' درصد'
+                        fn($state)=>
+                        number_format($state).' درصد'
                     )
-                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->toggleable(isToggledHiddenByDefault:true)
                     ->sortable(),
-                Tables\Columns\TextColumn::make('type')
-                    ->label('نوع')
-                    ->state(fn(Product $record) => ($record->type == 'Goods') ? 'کالا' : 'خدمات')
-                    ->color(fn(Product $record) => ($record->type == 'Goods') ? 'info' : 'success'),
+                Tables\Columns\TextColumn::make('type.title')
+                    ->label('نوع'),
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label('واحد شمارش ')
                     ->sortable(),
@@ -352,49 +476,184 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('created_at_jalali')
                     ->label('تاریخ ایجاد')
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                    Tables\Columns\TextColumn::make('inventory')
+                    ->toggleable(isToggledHiddenByDefault:true),
+                Tables\Columns\TextColumn::make('inventory')
                     ->label('موجودی')
-                    ->color(function ($record) {
-                        return $record->inventory <= $record->reorder_point ? 'danger' : 'success';
+                    ->color(function($record){
+                        $count=StoreProduct::where('product_id',$record->id)->sum('quantity');
+                        return $count <= $record->reorder_point ? 'danger' : 'success';
                     })
                     ->description(function ($record) {
-                        return $record->inventory <= $record->reorder_point ? 'موجودی کم - سفارش مجدد لازم است' : '';
+                        $count = StoreProduct::where('product_id', $record->id)->sum('quantity');
+                        return $count <= $record->reorder_point ? 'موجودی کم - سفارش مجدد لازم است' : '';
+                    })
+                    ->formatStateUsing(function ($record) {
+                        $count = StoreProduct::where('product_id', $record->id)->sum('quantity');
+                        return $count;
                     }),
-                Tables\Columns\TextColumn::make('reorder_point')->label('نقطه سفارش مجدد')
+                Tables\Columns\TextColumn::make('reorder_point')->label('نقطه سفارش مجدد'),
+                Tables\Columns\TextColumn::make('discounted_price')
+                    ->label('قیمت با تخفیف')
+                    ->formatStateUsing(function ($record) {
+                        $discountedPrice = $record->discounted_price;
+                        return $discountedPrice != $record->selling_price
+                        ? number_format($discountedPrice) . ' ریال'
+                        : '-';
+                    })
+                    ->color(function ($record) {
+                        return $record->discounted_price != $record->selling_price ? 'success' : 'gray';
+                    })
+                    ->sortable(),
 
             ])
             ->defaultSort('created_at', 'desc')
 
             ->filters([
-                SelectFilter::make('type')
+                SelectFilter::make('product_type_id')
                     ->label('نوع')
-                    ->options([
-                        'Goods' => 'کالا',
-                        'Services' => 'خدمات',
-                    ]),
+                    ->options(ProductType::where('company_id',auth('company')->user()->id)->pluck('title','id')->all()),
+                TernaryFilter::make('has_discount')
+                    ->label('وضعیت تخفیف')
+                    ->trueLabel('دارای تخفیف')
+                    ->falseLabel('بدون تخفیف')
+                    ->queries(
+                        true: fn(Builder $query)  => $query->whereHas('discount', function ($q) {
+                            $q->where('is_active', true)
+                                ->where(function ($q) {
+                                    $q->whereNull('start_date')
+                                        ->orWhere('start_date', '<=', now());
+                                })
+                                ->where(function ($q) {
+                                    $q->whereNull('end_date')
+                                        ->orWhere('end_date', '>=', now());
+                                });
+                        }),
+                        false: fn(Builder $query) => $query->whereDoesntHave('discount'),
+                        blank: fn(Builder $query) => $query
+                    ),
 
-            ])
+            ], layout: FiltersLayout::AboveContent)
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                ->mutateFormDataUsing(function (array $data): array {
+                    dd($data);
+                    // array:16 [▼ // app\Filament\Company\Resources\ProductResource.php:538
+//   "image" => null
+//   "name" => "محصول 1"
+//   "barcode" => array:2 [▶]
+//   "selling_price" => 10000000.0
+//   "purchase_price" => 9000000.0
+//   "minimum_order" => 1
+//   "lead_time" => 1
+//   "reorder_point" => 1
+//   "sales_tax" => "0.00"
+//   "purchase_tax" => "0.00"
+//   "product_type_id" => 1
+//   "inventory" => "1000"
+//   "product_unit_id" => 13
+//   "tax_id" => 7
+//   "product_category_id" => 1
+//   "discount_id" => null
+// ]
+                }),
                 Tables\Actions\DeleteAction::make(),
-                // Tables\Actions\Action::make('pdf')
-                // ->label('PDF')
-                // ->color('success')
-                // ->icon('heroicon-o-home')
-                // ->action(function (Model $record) {
-                //     return response()->streamDownload(function () use ($record) {
-                //         echo Pdf::loadHtml(
-                //             Blade::render('pdf', ['record' => $record])
-                //         )
-                //         ->setPaper('a4', 'landscape')
-                //         ->stream();
-                //     }, $record->name . '.pdf');
-                // }),
+
             ])
 
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([]),
+                Tables\Actions\BulkAction::make('count_selected')
+                    ->label('چاپ')
+                    ->action(function (HasTable $livewire) {
+                        $selectedRecords = $livewire->getSelectedTableRecords();
+
+                        // بررسی خالی بودن رکوردها
+                        if ($selectedRecords->isEmpty()) {
+                            Notification::make()
+                                ->title('خطا')
+                                ->body('هیچ رکوردی انتخاب نشده است.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        // دریافت مقادیر موقت
+                        $validRecords  = [];
+                        $hasError      = false;
+                        $errorMessages = [];
+                        foreach ($selectedRecords as $record) {
+                            $recordKey = $record->id;
+                            if (! $hasError) {
+                                $validRecords[] = [
+                                    'name'          => $record->name,
+                                    'barcode'       => $record->barcode,
+                                    'type'          => $record->product_type_id,
+                                    'purchase_price' => $record->purchase_price,
+                                    'selling_price' => $record->selling_price,
+                                ];
+                            }
+                        }
+
+                        // اگر خطا وجود داشت، فرآیند متوقف می‌شود
+                        if ($hasError) {
+                            Notification::make()
+                                ->title('خطا')
+                                ->body('<ul class="list-disc list-inside"><li>' . implode('</li><li>', $errorMessages) . '</li></ul>')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        // dd($validRecords);
+                        // منطق چاپ
+                        Notification::make()
+                            ->title('موفقیت')
+                            ->body('رکوردها برای چاپ آماده هستند.')
+                            ->success()
+                            ->send();
+
+                        // ذخیره آرایه در سشن برای انتقال به کنترلر
+                        session()->flash('products', $validRecords);
+                        return redirect()->route('products.pdf');
+                    })
+                    ->icon('heroicon-o-printer'),
+                Tables\Actions\BulkAction::make('apply_discount')
+                    ->label('اعمال تخفیف')
+                    ->icon('heroicon-o-ticket')
+                    ->form([
+                        Select::make('discount_id')
+                            ->label('تخفیف')
+                            ->options(fn() => \App\Models\Discount::where('company_id', auth()->user('company')->id)
+                                    ->where('is_active', true)
+                                    ->pluck('name', 'id'))
+                            ->nullable()
+                            ->searchable()
+                            ->preload(),
+                    ])
+                    ->action(function (array $data, HasTable $livewire) {
+                        $selectedRecords = $livewire->getSelectedTableRecords();
+
+                        if ($selectedRecords->isEmpty()) {
+                            Notification::make()
+                                ->title('خطا')
+                                ->body('هیچ محصولی انتخاب نشده است.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        $discountId = $data['discount_id'] ?? null;
+
+                        $selectedRecords->each(function ($product) use ($discountId) {
+                            $product->update(['discount_id' => $discountId]);
+                        });
+
+                        Notification::make()
+                            ->title('موفقیت')
+                            ->body('تخفیف با موفقیت به محصولات انتخاب‌شده اعمال شد.')
+                            ->success()
+                            ->send();
+                    }),
             ]);
     }
 
@@ -411,7 +670,7 @@ class ProductResource extends Resource
             ->where('company_id', auth()->user('company')->id)
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
-                ActiveProductScope::class
+                ActiveProductScope::class,
             ]);
     }
 

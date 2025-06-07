@@ -45,6 +45,7 @@ class InstallmentSaleResource extends Resource
                     ->label('فاکتور فروش')
                     ->options(
                         Invoice::where('type','sale')
+                        ->where('company_id',auth()->user('company')->id)
                         ->get()
                         ->mapWithKeys(function ($invoice) {
                             return [$invoice->id => "فاکتور ". $invoice->number .' - '. number_format($invoice->total_amount).'ریال '];
@@ -189,7 +190,7 @@ class InstallmentSaleResource extends Resource
                                         ->required(),
                                     Forms\Components\Select::make('bank')
                                         ->label('بانک')
-                                        ->options(Bank::all()->pluck('name', 'name')->toArray())
+                                        ->options(Bank::where('company_id',auth('company')->user()->id)->pluck('name', 'name')->toArray())
                                         ->required()
                                         ->suffixAction(
                                             Forms\Components\Actions\Action::make('add_bank')
@@ -400,4 +401,11 @@ class InstallmentSaleResource extends Resource
         return (float) str_replace(',', '', $value ?? 0);
     }
     protected static ?int $navigationSort = 6;
+
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->whereHas('invoice', fn (Builder $query) => $query->where('company_id', auth()->user('company')->id));
+    }
 }

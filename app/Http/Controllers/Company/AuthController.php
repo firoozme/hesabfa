@@ -92,6 +92,8 @@ class AuthController extends Controller
     public function logout()
     {
         Auth::guard('company')->logout();
+        $request->session()->invalidate();
+    $request->session()->regenerateToken();
         return redirect()->route('company.login');
     }
 }

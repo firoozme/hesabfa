@@ -2,9 +2,10 @@
 
 namespace App\Filament\Company\Resources\SaleReturnInvoiceResource\Pages;
 
-use App\Filament\Company\Resources\SaleReturnInvoiceResource;
 use Filament\Actions;
+use App\Models\Product;
 use Filament\Resources\Pages\EditRecord;
+use App\Filament\Company\Resources\SaleReturnInvoiceResource;
 
 class EditSaleReturnInvoice extends EditRecord
 {
@@ -13,7 +14,13 @@ class EditSaleReturnInvoice extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            // Actions\DeleteAction::make(),
         ];
+    }
+
+   
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
     }
 }

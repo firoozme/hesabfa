@@ -18,9 +18,9 @@ class DownloadExport extends Controller
         // } else {
         //     abort_unless($export->user_id != auth('company')->user()->id);
         // }
-        if($export->user_id != auth('company')->user()->id){
-            abort(403);
-        }
+        // if($export->user_id != auth()->user('company')->id){
+        //     abort(403);
+        // }
 
         $format = ExportFormat::tryFrom($request->query('format'));
 

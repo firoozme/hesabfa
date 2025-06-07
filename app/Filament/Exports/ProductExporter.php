@@ -34,13 +34,12 @@ class ProductExporter extends Exporter
              ->label('نقطه سفارش'),
             ExportColumn::make('sales_tax')
              ->label('مالیات فروش')
-             ->formatStateUsing(fn (string $state) => (int)$state. ' درصد '),
+             ->formatStateUsing(fn (string $state) => $state ? (int)$state. ' درصد ' : '') ,
             ExportColumn::make('purchase_tax')
              ->label('مالیات خرید')
-             ->formatStateUsing(fn (string $state) => (int)$state. ' درصد '),
-            ExportColumn::make('type')
-             ->label('نوع')
-             ->formatStateUsing(fn (string $state) => ($state == 'Goods') ? 'کالا' : 'خدمات' ),
+             ->formatStateUsing(fn (string $state) => $state ? (int)$state. ' درصد ' : ''),
+            ExportColumn::make('type.title')
+             ->label('نوع'),
             ExportColumn::make('unit.name')
              ->label('واحد مالیاتی'),
             ExportColumn::make('tax.title')

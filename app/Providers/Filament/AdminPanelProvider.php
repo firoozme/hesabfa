@@ -61,8 +61,7 @@ class AdminPanelProvider extends PanelProvider
             // ->topNavigation()
             ->font('Yekan', url: asset('css/fonts.css'))
             ->darkMode(false)
-            ->plugin(FilamentSpatieRolesPermissionsPlugin::make())
-            ;
+            ->plugin(FilamentSpatieRolesPermissionsPlugin::make());
     }
 
     

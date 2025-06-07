@@ -94,7 +94,7 @@ return [
     'default_guard_name' => null,
 
     // if false guard option will not be show on screen. You should set a default_guard_name in this case
-    'should_show_guard' => true,
+    'should_show_guard' => false,
 
     'model_filter_key' => 'return \'%\'.$value;', // Eg: 'return \'%\'.$key.'\%\';'
 

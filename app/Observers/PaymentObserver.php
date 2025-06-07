@@ -14,7 +14,7 @@ class PaymentObserver
      */
     public function created(Payment $payment): void
     {
-        // dd($payment);
+        
         // "invoice_id" => "1"
         // "paymentable_type" => "App\Models\PettyCash"
         // "paymentable_id" => "1"
@@ -33,11 +33,11 @@ class PaymentObserver
         'company_id' => auth()->user('company')->id,
 
         // اطلاعات مبدا (حسابی که از آن پرداخت شده)
-        'source_id' => $payment->paymentable_id,
+        'source_id' => $payment->type=='payment' ? $payment->paymentable_id : null,
         'source_type' => $payment->paymentable_type,
 
         // اطلاعات مقصد (می‌تواند همان حساب مبدا باشد یا نوع دیگری)
-        'destination_id' => null,
+        'destination_id' => $payment->type=='payment' ? null : $payment->paymentable_id,
         'destination_type' => $payment->paymentable_type,
 
         // نوع تراکنش: پرداخت

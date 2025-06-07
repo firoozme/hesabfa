@@ -11,7 +11,7 @@ class BanksTableSeeder extends Seeder
     /**
      * Run the database seeds.
      */
-    public function run(): void
+    public function runWithCompanyId(int $companyId): void
     {
         $banks = [
             ['name' => 'بانک ملی ایران', 'logo' => 'img/banks/melli.png'],
@@ -37,6 +37,10 @@ class BanksTableSeeder extends Seeder
             ['name' => 'بانک قرض‌الحسنه رسالت', 'logo' => 'img/banks/gharzolhasane.png'],
             ['name' => 'پست بانک ایران', 'logo' => 'img/banks/postbank.png'],
         ];
+
+        foreach ($banks as &$bank) {
+            $bank['company_id'] = $companyId;
+        }
 
         DB::table('banks')->insert($banks);
     }

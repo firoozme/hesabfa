@@ -178,7 +178,7 @@ class Payments extends Page implements Tables\Contracts\HasTable
                                         ->default($isCheck ? $check->serial_number : null),
                                     Select::make('bank')
                                         ->label('بانک')
-                                        ->options(Bank::all()->pluck('name', 'name')->toArray())
+                                        ->options(Bank::where('company_id',auth('company')->user()->id)->pluck('name', 'name')->toArray())
                                         ->required()
                                         ->default($isCheck ? $check->bank : null)
                                         ->suffixAction(
@@ -428,7 +428,7 @@ class Payments extends Page implements Tables\Contracts\HasTable
                                                 ->required(),
                                             Select::make('bank')
                                                 ->label('بانک')
-                                                ->options(Bank::all()->pluck('name', 'name')->toArray())
+                                                ->options(Bank::where('company_id',auth('company')->user()->id)->pluck('name', 'name')->toArray())
                                                 ->required()
                                                 ->suffixAction(
                                                     Act::make('add_bank')
@@ -514,6 +514,7 @@ class Payments extends Page implements Tables\Contracts\HasTable
                                 'amount' => $paymentData['amount'],
                                 'reference_number' => $paymentData['reference_number'] ?? '',
                                 'commission' => $paymentData['commission'],
+                                'type' => 'payment',
                             ]);
                         }
 

@@ -34,7 +34,7 @@ class ManageStores extends ManageRecords
                 ->formats([
                     ExportFormat::Xlsx,
                 ])
-                ->fileDisk('export'),
+                ->fileDisk('public'),
         ];
     }
 }

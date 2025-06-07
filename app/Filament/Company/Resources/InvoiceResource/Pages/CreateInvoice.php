@@ -1,27 +1,53 @@
 <?php
 namespace App\Filament\Company\Resources\InvoiceResource\Pages;
 
-use App\Filament\Company\Resources\InvoiceResource;
-use App\Models\Account;
-use App\Models\FinancialDocument;
 use App\Models\Person;
-use App\Models\StoreTransaction;
-use App\Models\StoreTransactionItem;
+use App\Models\Account;
+use App\Models\Product;
 use App\Models\Transaction;
-use Filament\Resources\Pages\CreateRecord;
+use Filament\Actions\Action;
+use App\Models\StoreTransaction;
+use App\Models\FinancialDocument;
 use Illuminate\Support\Facades\DB;
+use App\Models\StoreTransactionItem;
+use Filament\Resources\Pages\CreateRecord;
+use App\Filament\Company\Resources\InvoiceResource;
 
 class CreateInvoice extends CreateRecord
 {
     protected static string $resource = InvoiceResource::class;
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $data['company_id'] = auth()->user('comnpany')->id;
+        $data['company_id'] = auth('company')->user()->id;
 
         return $data;
     }
+    // protected function getFormActions(): array
+    // {
+    //     return [
+          
+               
+    //             Action::make('create_and_pay')
+    //                 ->label('ایجاد و چاپ')
+    //                 ->color('success')
+    //                 ->action(function ($livewire, $data) {
+    //                     // ایجاد فاکتور
+    //                     $formData = $this->form->getState();
+                        
+    //                     // الحاق company_id به داده‌های فرم
+    //                     $formData['company_id'] = auth('company')->user()->id;
+
+    //                     $record = $this->handleRecordCreation($formData);
+                                      
+    //                     return redirect()->route('invoice.pdf', ['id' => $record->id]);
+    //                 }),
+    //                 ...parent::getFormActions(),
+    //     ];
+    // }
     protected function afterCreate(): void
     {
+       
+        // dd($this->invoice->items);
         DB::transaction(function () {
             $invoice = $this->record;
 
@@ -44,6 +70,10 @@ class CreateInvoice extends CreateRecord
                     'product_id'           => $item->product_id,
                     'quantity'             => $item->quantity,
                 ]);
+
+                Product::where('id',$item->product_id)->update([
+                    'purchase_price' => $item->unit_price
+                ]);
             }
 
             // ثبت اسناد مالی و حسابداری
@@ -52,6 +82,7 @@ class CreateInvoice extends CreateRecord
                 'date'            => $invoice->date,
                 'description'     => 'فاکتور خرید ' . $invoice->number,
                 'company_id'      => $invoice->company_id,
+                'invoice_id'      =>  $invoice->id
             ]);
 
             $supplier         = $invoice->person;

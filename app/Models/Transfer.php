@@ -95,6 +95,6 @@ class Transfer extends Model
 
     public function getCreatedAtJalaliAttribute()
     {
-        return verta($this->created_at)->format('J j D d');
+        return verta($this->created_at);
     }
 }

@@ -28,4 +28,19 @@ class Transaction extends Model
     {
         return $this->belongsTo(Transfer::class, 'transfer_id');
     }
+    public function getCreatedAtJalaliAttribute()
+    {
+        return verta($this->created_at)->format('Y/m/d - H:i');
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($transaction) {
+            if (auth('company')->check()) {
+                $transaction->company_id = auth('company')->user()->id;
+            }
+        });
+    }
 }

@@ -10,6 +10,8 @@ use Filament\Tables\Table;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Company\Resources\PriceListResource\Pages;
@@ -22,7 +24,7 @@ class PriceListResource extends Resource
     protected static ?string $pluralLabel = 'لیست قیمت محصولات';
     protected static ?string $label = 'لیست قیمت محصول';
     protected static ?string $navigationGroup = 'کالا و خدمات';
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document';
 
     public static function getEloquentQuery(): Builder
 {
@@ -95,10 +97,10 @@ class PriceListResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('start_date_jalali')
                 ->label('از تاریخ')
-                    ->sortable(),
+                    ->sortable(['start_date']),
                 Tables\Columns\TextColumn::make('end_date_jalali')
                 ->label('تا تاریخ')
-                    ->sortable(),
+                ->sortable(['end_date']),
 
                 Tables\Columns\TextColumn::make('description')
                     ->label('توضیحات')
@@ -107,7 +109,7 @@ class PriceListResource extends Resource
 
                 Tables\Columns\TextColumn::make('created_at_jalali')
                 ->label('تاریخ ایجاد')
-                    ->sortable()
+                ->sortable(['created_at']),
 
             ])
             ->defaultSort('created_at','desc')
@@ -130,6 +132,65 @@ class PriceListResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
+                Tables\Actions\BulkAction::make('count_selected')
+                ->label('چاپ')
+                ->action(function (HasTable $livewire) {
+                    $selectedRecords = $livewire->getSelectedTableRecords();
+
+                    // بررسی خالی بودن رکوردها
+                    if ($selectedRecords->isEmpty()) {
+                        Notification::make()
+                            ->title('خطا')
+                            ->body('هیچ رکوردی انتخاب نشده است.')
+                            ->danger()
+                            ->send();
+                        return;
+                    }
+
+                    // دریافت مقادیر موقت
+                    $validRecords = [];
+                    $hasError = false;
+                    $errorMessages = [];
+
+                    foreach ($selectedRecords as $record) {
+                        $recordKey = $record->id;
+
+                        
+
+                        if (!$hasError) {
+                            $validRecords[] = [
+                                'id' => $record->id,
+                                'name' => $record->name,
+                                'start_date' => $record->start_date,
+                                'end_date' => $record->end_date,
+                                'end_date' => $record->created_at,
+                            ];
+                        }
+                    }
+
+                    // اگر خطا وجود داشت، فرآیند متوقف می‌شود
+                    if ($hasError) {
+                        Notification::make()
+                            ->title('خطا')
+                            ->body('<ul class="list-disc list-inside"><li>' . implode('</li><li>', $errorMessages) . '</li></ul>')
+                            ->danger()
+                            ->send();
+                        return;
+                    }
+
+                    // dd($validRecords);
+                    // منطق چاپ
+                    Notification::make()
+                        ->title('موفقیت')
+                        ->body('رکوردها برای چاپ آماده هستند.')
+                        ->success()
+                        ->send();
+
+                        // ذخیره آرایه در سشن برای انتقال به کنترلر
+                    session()->flash('lists', $validRecords);
+                    return redirect()->route('products.list.pdf');                        
+                })
+                ->icon('heroicon-o-printer')
             ]);
     }
 

@@ -6,6 +6,7 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Pages\SettingsPage;
 use App\Settings\GeneralSettings;
+use Illuminate\Support\Facades\Auth;
 use Filament\Forms\Components\Section;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Forms\Components\TextInput;
@@ -22,13 +23,26 @@ class ManageFooter extends SettingsPage
     protected static ?string $navigationGroup = 'تنظیمات';
     protected static ?string $title = 'تنظیمات صفحه اصلی';
 
+// کنترل نمایش در ناوبری
+public static function shouldRegisterNavigation(): bool
+{
+    return (Auth::user()?->hasPermissionTo('landing_update') || Auth::user()->isSuperAdmin ) ?? false;
+}
+
+// کنترل دسترسی به صفحه
+public static function canViewAny(): bool
+{
+    return Auth::user()?->hasPermissionTo('landing_update') ?? false;
+}
     public function form(Form $form): Form
     {
+       
         return $form
             ->schema([
                 FileUpload::make('logo')
                 ->label('لوگو')
                 ->disk('public')
+                ->required()
                 ->directory('setting/logo')
                 ->visibility('private')
                 ->deleteUploadedFileUsing(function ($file) {
@@ -40,6 +54,7 @@ class ManageFooter extends SettingsPage
                 }),
                 FileUpload::make('image')
                 ->label('عکس')
+                ->required()
                 ->disk('public')
                 ->directory('setting/image')
                 ->visibility('private')
@@ -50,24 +65,26 @@ class ManageFooter extends SettingsPage
                         unlink($imagePath);
                     }
                 }),
-                TextInput::make('title')
-                ->label('عنوان')
-                ->columnSpanFull(),
+                
                 Section::make()
                 ->columns([
                     'sm' => 1,
-                    'xl' => 3,
-                    '2xl' => 8,
+                    'xl' => 2,
                 ])
                 ->schema([
+                    TextInput::make('title')
+                ->label('عنوان'),
                     TextInput::make('titr1')
-                    ->label('تیتر1'),
-                    TextInput::make('titr2')
-                    ->label('تیتر2'),
-                    TextInput::make('titr3')
-                    ->label('تیتر3'),
+                    ->label('تیتر'),
+                    // TextInput::make('titr2')
+                    // ->label('تیتر2'),
+                    // TextInput::make('titr3')
+                    // ->label('تیتر3'),
                     
                 ])
             ]);
     }
+
+
+    
 }

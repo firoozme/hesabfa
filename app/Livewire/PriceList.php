@@ -43,7 +43,7 @@ class PriceList extends Component implements HasForms, HasTable
                 ->circular()
                 ->extraImgAttributes(['loading' => 'lazy'])
                 ->checkFileExistence(false)
-                ->default(fn(Product $record) => file_exists(asset('upload/'.$record->image))  ?  asset('upload/'.$record->image) : asset('upload/photo_placeholder.png') )
+                // ->default(fn(Product $record) => file_exists(asset('upload/'.$record->image))  ?  asset('upload/'.$record->image) : asset('upload/photo_placeholder.png') )
 
                 ->disk('public')
                 ->hidden(!$this->price_list->display_image),

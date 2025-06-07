@@ -11,7 +11,7 @@ class CreateFinancialDocument extends CreateRecord
     protected static string $resource = FinancialDocumentResource::class;
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $data['company_id'] = auth()->user('comnpany')->id;
+        $data['company_id'] = auth()->user('company')->id;
 
         return $data;
     }

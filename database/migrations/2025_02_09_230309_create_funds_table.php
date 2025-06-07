@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('funds', function (Blueprint $table) {
             $table->id();
             $table->string('accounting_auto')->default('auto');
-            $table->string('accounting_code')->unique();
+            $table->string('accounting_code');
             $table->string('name');
             $table->text('description')->nullable(); // توضیحات
             $table->string('switch_number')->nullable(); // شماره سوییچ پرداخت

@@ -26,7 +26,7 @@ class ListInvoices extends ListRecords
                 ->formats([
                     ExportFormat::Xlsx,
                 ])
-                ->fileDisk('export'),
+                ->fileDisk('public'),
             Actions\CreateAction::make(),
             // Action::make('return')
             // ->label('ایجاد برگشت خرید')

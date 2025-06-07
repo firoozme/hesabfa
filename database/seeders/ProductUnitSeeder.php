@@ -11,7 +11,7 @@ class ProductUnitSeeder extends Seeder
     /**
      * Run the database seeds.
      */
-    public function run(): void
+    public function runWithCompanyId(int $companyId): void
     {
         $units = [
             'بانكه',
@@ -110,6 +110,7 @@ class ProductUnitSeeder extends Seeder
 
         foreach ($units as $unit) {
             ProductUnit::create([
+                'company_id' => $companyId,
                 'name' => $unit,
                 'tax' => 0, // مقدار پیش فرض برای مالیات
             ]);

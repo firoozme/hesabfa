@@ -42,7 +42,7 @@ class OpeningBalanceResource extends Resource
                     ->options(function (callable $get) {
                         $type = $get('accountable_type');
                         if (!$type) return [];
-                        return $type::all()->pluck('name', 'id')->toArray();
+                        return $type::all()->where('company_id',auth()->user('company')->id)->pluck('name', 'id')->toArray();
                     })
                     ->required()
                     ->searchable(),
@@ -71,11 +71,13 @@ class OpeningBalanceResource extends Resource
                 Tables\Columns\TextColumn::make('accountable_type')
                     ->label('نوع حساب')
                     ->formatStateUsing(function($state){
-                        if(class_basename($state) == 'Fund'){
+                        if($state == 'App\Models\Fund'){
                             return 'صندوق';
-                        }elseif(class_basename($state) == 'CompanyBankAccount'){
+                        }elseif($state == 'App\Models\CompanyBankAccount'){
                             return 'حساب بانکی';
 
+                        }elseif($state == 'App\Models\PettyCash'){
+                            return 'تنخواه';
                         }else{
                             return 'صندوق';
                         }

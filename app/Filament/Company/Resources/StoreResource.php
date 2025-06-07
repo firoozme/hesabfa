@@ -29,8 +29,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Columns\Summarizers\Sum;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Company\Resources\StoreResource\Pages;
-use App\Filament\Resources\StoreResource\Pages\StoreInventory;
 use App\Filament\Company\Resources\StoreResource\RelationManagers;
+use App\Filament\Company\Resources\StoreResource\Pages\StoreInventory;
 use App\Filament\Resources\StoreResource\RelationManagers\ProductsRelationManager;
 
 class StoreResource extends Resource
@@ -160,16 +160,13 @@ class StoreResource extends Resource
                 Tables\Columns\TextColumn::make('phone_number')
                     ->label('شماره تلفن')
                     ->searchable(),
-                    ToggleColumn::make('is_default')
+                    Tables\Columns\IconColumn::make('is_default')
                     ->label('پیش‌فرض')
-                    ->onColor('success')
-                    ->offColor('gray')
-                    ->afterStateUpdated(function ($record, $state) {
-                        // وقتی Toggle تغییر کرد، مطمئن شو فقط این انبار پیش‌فرضه
-                        if ($state) {
-                            Store::where('id', '!=', $record->id)->update(['is_default' => false]);
-                        }
-                    }),
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check')
+                    ->falseIcon('heroicon-o-x-mark')
+                    ->trueColor('success') // سبز برای true
+                    ->falseColor('danger'), // قرمز برای false
                 Tables\Columns\TextColumn::make('created_at_jalali')
                     ->label('تاریخ ایجاد')
                     ->searchable(['created_at']),
@@ -197,6 +194,7 @@ class StoreResource extends Resource
                             ->label('انبار مقصد')
                             ->options(function ($record) {
                                 return Store::where('id', '!=', $record->id)
+								->where('company_id',auth()->user('company')->id)
                                     ->pluck('title', 'id')
                                     ->toArray();
                             })
@@ -268,7 +266,7 @@ class StoreResource extends Resource
                         'type' => 'transfer',
                         'date' => $date,
                         'reference' => 'TRN-' . $lastTransferredStoreTransactionId,
-                        'destination_store_id' => $destinationStoreId, // اضافه کردن انبار مقصد
+                        'destination_id' => $destinationStoreId, // اضافه کردن انبار مقصد
                     ]);
 
                     // ثبت آیتم‌های انتقال

@@ -18,7 +18,7 @@ class StatsOverview extends BaseWidget
     {
         return [
              Stat::make('تعداد فاکتورها', Invoice::where('company_id',auth()->user('company')->id)->count()),
-            Stat::make('مجموع پرداخت ها', number_format(Payment::whereBetween('created_at', [now()->subYear(), now()])->sum('amount')). ' ریال ' ),
+            // Stat::make('مجموع پرداخت ها', number_format(Payment::whereBetween('created_at', [now()->subYear(), now()])->sum('amount')). ' ریال ' ),
             Stat::make('تعداد مشتریان', Person::where('company_id',auth()->user('company')->id)->count()),
             Stat::make('تعداد تنخواه', PettyCash::where('company_id',auth()->user('company')->id)->count()),
             Stat::make('حساب بانکی', CompanyBankAccount::where('company_id',auth()->user('company')->id)->count()),

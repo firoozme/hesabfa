@@ -68,7 +68,7 @@ class Store extends Model
              ->sum(function ($transaction) {
                  return $transaction->items->sum('quantity');
              });
- 
+//  dd($entries, $exits);
          return $entries - $exits;
      }
 //      public function getStock($productId)
@@ -163,9 +163,9 @@ class Store extends Model
 
         static::saving(function ($store) {
             // اگه این انبار پیش‌فرض شده، بقیه رو غیرفعال کن
-            if ($store->is_default) {
-                static::where('company_id',auth()->user('company')->id)->where('id', '!=', $store->id)->update(['is_default' => false]);
-            }
+            // if ($store->is_default) {
+            //     static::where('company_id',auth()->user('company')->id)->where('id', '!=', $store->id)->update(['is_default' => false]);
+            // }
         });
     }
 

@@ -108,8 +108,8 @@ class CreatePurchaseReturnInvoice extends CreateRecord
         try {
             return parent::handleRecordCreation($data);
         } catch (\Exception $e) {
-            $this->notify('danger', $e->getMessage());
-            throw $e; // متوقف کردن فرآیند
+            // $this->notify('danger', $e->getMessage());
+            throw  $e->getMessage(); // متوقف کردن فرآیند
         }
     }
 }

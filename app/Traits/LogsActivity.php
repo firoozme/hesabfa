@@ -67,7 +67,7 @@ trait LogsActivity
         $modelNames = [
             'App\Models\Account' => 'حساب',
             'App\Models\AccountingCategory' => 'دسته‌بندی حسابداری',
-            'App\Models\AccountingDocument' => 'سند حسابداری',
+            'App\Models\AccountingDocument' => 'گردش',
             'App\Models\AccountingTransaction' => 'تراکنش حسابداری',
             'App\Models\Bank' => 'بانک',
             'App\Models\BankAccount' => 'حساب بانکی',
@@ -121,13 +121,13 @@ trait LogsActivity
     } elseif ($model instanceof \App\Models\AccountingCategory) {
         return $model->title ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\AccountingDocument) {
-        return $model->document_number ?? 'نامشخص';
+        return $model->reference ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\AccountingTransaction) {
-        return $model->transaction_id ?? 'نامشخص';
+        return $model->amount ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\Bank) {
         return $model->name ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\BankAccount) {
-        return $model->account_number ?? 'نامشخص';
+        return $model->bank_name ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\Capital) {
         return $model->amount ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\Check) {
@@ -137,7 +137,7 @@ trait LogsActivity
     } elseif ($model instanceof \App\Models\Company) {
         return $model->fullname ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\CompanyBankAccount) {
-        return $model->account_number ?? 'نامشخص';
+        return $model->name ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\CompanyOtp) {
         return $model->otp_code ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\Expense) {
@@ -175,13 +175,13 @@ trait LogsActivity
     } elseif ($model instanceof \App\Models\Person) {
         return $model->fullname ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\PersonTax) {
-        return $model->tax_number ?? 'نامشخص';
+        return $model->title ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\PersonType) {
         return $model->title ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\PettyCash) {
         return $model->amount ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\PriceList) {
-        return $model->list_name ?? 'نامشخص';
+        return $model->name ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\Product) {
         return $model->name ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\ProductCategory) {
@@ -201,7 +201,7 @@ trait LogsActivity
     } elseif ($model instanceof \App\Models\Tax) {
         return $model->title ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\Transaction) {
-        return $model->transaction_id ?? 'نامشخص';
+        return $model->description ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\Transfer) {
         return $model->transfer_number ?? 'نامشخص';
     } elseif ($model instanceof \App\Models\User) {

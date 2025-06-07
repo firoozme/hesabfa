@@ -18,24 +18,7 @@ class Check extends Model
     const TYPE_RECEIVABLE = 'receivable';
     const TYPE_PAYABLE = 'payable';
 
-    // ارتباط با بانک
-    // public function bank()
-    // {
-    //     return $this->belongsTo(Bank::class);
-    // }
-
-    // ارتباط با پرداخت کننده
-    // public function payer()
-    // {
-    //     return $this->belongsTo(Payer::class);
-    // }
-
-    // ارتباط با شعبه
-    // public function branch()
-    // {
-    //     return $this->belongsTo(Branch::class);
-    // }
-
+   
     // وضعیت چک
     public function getStatusLabelAttribute()
     {

@@ -82,9 +82,9 @@ class PersonResource extends Resource
                                 ->live()
                                 ->afterStateUpdated(
                                     function($state, callable $set){
-                                        $person = Person::withTrashed()->latest()->first();
-                                        $id      = $person ? (++$person->id) : 1;
-                                        $state === 'auto' ? $set('accounting_code', $id) : $set('accounting_code', '');
+                                        $person = Person::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                                        $accounting_code      = $person ? (++$person->accounting_code) : 1;
+                                        $state === 'auto' ? $set('accounting_code', $accounting_code) : $set('accounting_code', '');
                                     }
                                 )
                                 ->inline()
@@ -95,19 +95,21 @@ class PersonResource extends Resource
                                 ->required()
                                 ->default(
                                     function (Get $get) {
-                                        $person = Person::withTrashed()->latest()->first();
-                                        $id      = $person ? (++$person->id) : 1;
-                                        return ($get('accounting_auto') == 'auto') ? $id : '';
+                                        $person = Person::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                                        $accounting_code      = $person ? (++$person->accounting_code) : 1;
+                                        return ($get('accounting_auto') == 'auto') ? $accounting_code : '';
                                     }
                                 )
                                 ->afterStateHydrated(function (Get $get) {
-                                    $person = Person::withTrashed()->latest()->first();
-                                    $id      = $person ? (++$person->id) : 1;
-                                    return ($get('accounting_auto') == 'auto') ? $id : '';
+                                    $person = Person::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                                    $accounting_code      = $person ? (++$person->accounting_code) : 1;
+                                    return ($get('accounting_auto') == 'auto') ? $accounting_code : '';
                                 })
                                 ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                                 ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                                    return $rule->where('deleted_at', null);
+                                    return $rule
+                    ->where('company_id', auth('company')->user()->id) // شرط company_id
+                    ->where('deleted_at', null); //
                                 })
                                 ->live()
                                 ->maxLength(255),
@@ -127,25 +129,25 @@ class PersonResource extends Resource
                                 ->preload()
                                 ->multiple()
                                 ->required()
-                                ->reactive()
-                                ->suffixAction(
-                                    Act::make('add_type')
-                                        ->label('اضافه کردن نوع')
-                                        ->icon('heroicon-o-plus')
-                                        ->modalHeading('ایجاد نوع جدید')
-                                        ->action(function (array $data) {
-                                            $type = PersonType::create(['title' => $data['title']]);
-                                            return $type->id;
-                                        })
-                                        ->form([
-                                            TextInput::make('title')
-                                                ->label('عنوان')
-                                                ->required(),
-                                        ])
-                                        ->after(function ($livewire) {
-                                            $livewire->dispatch('refreshForm');
-                                        })
-                                ),
+                                ->reactive(),
+                                // ->suffixAction(
+                                //     Act::make('add_type')
+                                //         ->label('اضافه کردن نوع')
+                                //         ->icon('heroicon-o-plus')
+                                //         ->modalHeading('ایجاد نوع جدید')
+                                //         ->action(function (array $data) {
+                                //             $type = PersonType::create(['title' => $data['title']]);
+                                //             return $type->id;
+                                //         })
+                                //         ->form([
+                                //             TextInput::make('title')
+                                //                 ->label('عنوان')
+                                //                 ->required(),
+                                //         ])
+                                //         ->after(function ($livewire) {
+                                //             $livewire->dispatch('refreshForm');
+                                //         })
+                                // ),
                             Forms\Components\Select::make('person_tax_id')
                                 ->label('نوع مالیات')
                                 ->relationship('tax_type', 'title')
@@ -355,7 +357,7 @@ class PersonResource extends Resource
                     ->label('عکس')
                     ->extraImgAttributes(['loading' => 'lazy'])
                     ->checkFileExistence(false)
-                    ->default(fn(Person $record) => file_exists(asset('upload/' . $record->image)) ? asset('upload/' . $record->image) : asset('upload/avatar_placeholder.png'))
+                    // ->default(fn(Person $record) => file_exists(asset('upload/' . $record->image)) ? asset('upload/' . $record->image) : asset('upload/avatar_placeholder.png'))
                     ->disk('public'),
                 Tables\Columns\TextColumn::make('accounting_code')
                     ->label('کد حسابداری')

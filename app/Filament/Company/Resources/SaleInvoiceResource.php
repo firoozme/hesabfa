@@ -15,6 +15,7 @@ use Filament\Forms\Form;
 use App\Models\PersonType;
 use Filament\Tables\Table;
 use App\Models\InvoiceItem;
+use App\Models\ProductType;
 use App\Models\ProductUnit;
 use Filament\Support\RawJs;
 use App\Models\ProductCategory;
@@ -48,7 +49,7 @@ class SaleInvoiceResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('company_id', auth()->user('company')->id)
+            ->where('company_id', auth('company')->user()->id)
             ->where('type', 'sale');
     }
 
@@ -67,9 +68,9 @@ class SaleInvoiceResource extends Resource
                             ->required()
                             ->live()
                             ->afterStateUpdated(function ($state, callable $set) {
-                                $invoice = Invoice::withTrashed()->latest()->first();
-                                $id      = $invoice ? (++$invoice->id) : 1;
-                                $set('number', (int) $id);
+                                $invoice = Invoice::where('type','sale')->where('company_id',auth('company')->user()->id)->withTrashed()->orderBy('number','desc')->first();
+                                $number      = $invoice ? (++$invoice->number) : 1;
+                                $set('number', (int) $number);
                             }),
                         Radio::make('accounting_auto')
                             ->label('نحوه ورود شماره فاکتور')
@@ -77,9 +78,9 @@ class SaleInvoiceResource extends Resource
                             ->default('auto')
                             ->live()
                             ->afterStateUpdated(function ($state, callable $set) {
-                                $invoice = Invoice::withTrashed()->latest()->first();
-                                $id      = $invoice ? (++$invoice->id) : 1;
-                                $state === 'auto' ? $set('number', (int) $id) : $set('number', '');
+                                $invoice = Invoice::where('type','sale')->where('company_id',auth('company')->user()->id)->withTrashed()->orderBy('number','desc')->first();
+                                $number      = $invoice ? (++$invoice->number) : 1;
+                                $state === 'auto' ? $set('number', (int) $number) : $set('number', '');
                             })
                             ->inline()
                             ->inlineLabel(false),
@@ -89,12 +90,15 @@ class SaleInvoiceResource extends Resource
                             ->required()
                             ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                             ->default(function (Get $get) {
-                                $invoice = Invoice::withTrashed()->latest()->first();
-                                $id      = $invoice ? (++$invoice->id) : 1;
-                                return ($get('accounting_auto') == 'auto') ? (int) $id : '';
+                                $invoice = Invoice::where('type','sale')->where('company_id',auth('company')->user()->id)->withTrashed()->orderBy('number','desc')->first();
+                                $number      = $invoice ? (++$invoice->number) : 1;
+                                return ($get('accounting_auto') == 'auto') ? (int) $number : '';
                             })
                             ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                                return $rule->where('deleted_at', null);
+                                return $rule
+                                ->where('type','sale')
+    ->where('company_id', auth('company')->user()->id) // شرط company_id
+    ->where('deleted_at', null); //
                             })
                             ->live()
                             ->maxLength(255),
@@ -103,7 +107,7 @@ class SaleInvoiceResource extends Resource
                             ->jalali()
                             ->default(now())
                             ->required(),
-                        Forms\Components\TextInput::make('title')
+                        Forms\Components\TextInput::make('name')
                             ->label('عنوان'),
                         Forms\Components\Select::make('person_id')
                             ->label('مشتری')
@@ -145,9 +149,9 @@ class SaleInvoiceResource extends Resource
                                             ->default('auto')
                                             ->live()
                                             ->afterStateUpdated(function ($state, callable $set) {
-                                                $person = Person::withTrashed()->latest()->first();
-                                                $id     = $person ? (++$person->id) : 1;
-                                                $state === 'auto' ? $set('accounting_code', $id) : $set('accounting_code', '');
+                                                $person = Person::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                                                $accounting_code     = $person ? (++$person->accounting_code) : 1;
+                                                $state === 'auto' ? $set('accounting_code', $accounting_code) : $set('accounting_code', '');
                                             })
                                             ->inline()
                                             ->inlineLabel(false),
@@ -156,13 +160,16 @@ class SaleInvoiceResource extends Resource
                                             ->label('کد حسابداری')
                                             ->required()
                                             ->default(function (Get $get) {
-                                                $person = Person::withTrashed()->latest()->first();
-                                                $id     = $person ? (++$person->id) : 1;
-                                                return ($get('accounting_auto') == 'auto') ? (int) $id : '';
+                                                $person = Person::where('company_id',auth('company')->user()->id)->withTrashed()->latest()->first();
+                                                $accounting_code     = $person ? (++$person->accounting_code) : 1;
+                                                return ($get('accounting_auto') == 'auto') ? (int) $accounting_code : '';
                                             })
                                             ->readOnly(fn($get) => $get('accounting_auto') === 'auto')
                                             ->unique(ignoreRecord: true, modifyRuleUsing: function (Unique $rule) {
-                                                return $rule->where('deleted_at', null);
+                                                return $rule
+                                                ->where('type','sale')
+                    ->where('company_id', auth('company')->user()->id) // شرط company_id
+                    ->where('deleted_at', null); //
                                             })
                                             ->live()
                                             ->maxLength(255),
@@ -237,13 +244,19 @@ class SaleInvoiceResource extends Resource
                     ->addable(true)
                     ->deleteAction(fn($action) => $action->hidden(fn($state) => count($state) <= 1))
                     ->schema([
-                        Grid::make(['default' => 1, 'sm' => 2, 'md' => 4, 'lg' => 7])
+                        Grid::make(['default' => 1, 'sm' => 2, 'md' => 4, 'lg' => 10])
                             ->schema([
                                 Forms\Components\Select::make('product_id')
                                     ->label('محصول')
+                                    ->searchable()
+                                    ->placeholder('انتخاب')
+                                    ->loadingMessage('در حال لود ...')
+                                    ->searchPrompt('تایپ کنید ...')
+                                    ->noSearchResultsMessage('بدون نتیجه!')
                                     ->options(Product::where('company_id', auth()->user('company')->id)->pluck('name', 'id'))
                                     ->required()
-                                    ->reactive()
+                                    ->live()
+                                    ->columnSpan(2)
                                     ->suffixAction(
                                         Act::make('add_product')
                                             ->label('افزودن محصول')
@@ -261,8 +274,8 @@ class SaleInvoiceResource extends Resource
                                                     'reorder_point' => $data['reorder_point'],
                                                     'sales_tax' => $data['sales_tax'],
                                                     'purchase_tax' => $data['purchase_tax'],
-                                                    'type' => $data['type'],
-                                                    'inventory' => $data['inventory'],
+                                                    'product_type_id' => $data['product_type_id'],
+                                                    'inventory' => $data['inventory'] ?? 0,
                                                     'product_unit_id' => $data['product_unit_id'],
                                                     'tax_id' => $data['tax_id'],
                                                     'product_category_id' => $data['product_category_id'],
@@ -284,6 +297,9 @@ class SaleInvoiceResource extends Resource
                                     
                                                 // ارسال رویداد برای رفرش گزینه‌ها
                                                 $livewire->dispatch('refresh-product-options');
+
+                                                $set('unit',$product->product_unit_id);
+                                                $set('unit_price', $product ? $product->selling_price : null);
                                             })
                                             ->form([
                                                 Forms\Components\Grid::make()
@@ -363,30 +379,11 @@ class SaleInvoiceResource extends Resource
                                                 ->minValue(0)
                                                 ->postfix('درصد'),
                                 
-                                            Forms\Components\Select::make('type')
+                                            Forms\Components\Select::make('product_type_id')
                                                 ->label('نوع')
-                                                ->options([
-                                                    'Goods' => 'کالا',
-                                                    'Services' => 'خدمات',
-                                                ])
+                                                ->options(ProductType::all()->pluck('title','id'))
                                                 ->required(),
                                 
-                                            TextInput::make('inventory')
-                                                ->label('موجودی اولیه')
-                                                ->numeric()
-                                                ->default(0)
-                                                ->minValue(0)
-                                                ->reactive()
-                                                ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                                    $defaultStore = \App\Models\Store::where('is_default', true)->first();
-                                                    $storesExist = \App\Models\Store::exists();
-                                
-                                                    if ($state > 0 && !$defaultStore && $storesExist) {
-                                                        $set('show_store_select', true);
-                                                    } else {
-                                                        $set('show_store_select', false);
-                                                    }
-                                                }),
                                 
                                             Forms\Components\Select::make('selected_store_id')
                                                 ->label('انبار')
@@ -405,7 +402,7 @@ class SaleInvoiceResource extends Resource
                                 
                                             Forms\Components\Select::make('product_category_id')
                                                 ->required()
-                                                ->label('دسته پدر')
+                                                ->label('گروه بندی')
                                                 ->options(function () {
                                                     $categories = ProductCategory::all();
                                                     $options = [];
@@ -421,7 +418,7 @@ class SaleInvoiceResource extends Resource
                                                     $buildOptions($categories);
                                                     return $options;
                                                 })
-                                                ->placeholder('انتخاب دسته')
+                                                ->placeholder('انتخاب گروه')
                                                 ->searchable()
                                                 ->preload()
                                                 ])
@@ -497,6 +494,7 @@ class SaleInvoiceResource extends Resource
                                 Forms\Components\TextInput::make('unit_price')
                                     ->label('مبلغ واحد')
                                     ->suffix('ریال')
+                                    ->columnSpan(2)
                                     ->required()
                                     ->rules([
                                         fn(Get $get) => function (string $attribute, $value, callable $fail) use ($get) {
@@ -547,6 +545,7 @@ class SaleInvoiceResource extends Resource
                                     ->dehydrated(false),
                                 Forms\Components\TextInput::make('total_price')
                                     ->label('جمع کل')
+                                    ->columnSpan(2)
                                     ->suffix('ریال')
                                     ->readOnly()
                                     ->default(0),
@@ -664,6 +663,11 @@ class SaleInvoiceResource extends Resource
             ->filters([])
             ->defaultSort('created_at', 'desc')
             ->actions([
+                Action::make('installment')
+                ->label('تقسیط')
+                ->icon('heroicon-o-chart-pie')
+                ->color('success')
+                ->url(fn() => route('filament.company.resources.installment-sales.create')),
                 ExportAction::make()
                     ->label('خروجی')
                     ->exporter(InvoiceItemExporter::class)
@@ -760,4 +764,5 @@ class SaleInvoiceResource extends Resource
         return $data;
     }
     protected static ?int $navigationSort = 6;
+
 }

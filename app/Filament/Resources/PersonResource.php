@@ -55,7 +55,7 @@ class PersonResource extends Resource
                 ->label('عکس')
                 ->extraImgAttributes(['loading' => 'lazy'])
                 ->checkFileExistence(false)
-                ->default(fn(Person $record) => file_exists(asset('upload/' . $record->image)) ? asset('upload/' . $record->image) : asset('upload/avatar_placeholder.png'))
+                // ->default(fn(Person $record) => file_exists(asset('upload/' . $record->image)) ? asset('upload/' . $record->image) : asset('upload/avatar_placeholder.png'))
                 ->disk('public'),
             Tables\Columns\TextColumn::make('accounting_code')
                 ->label('کد حسابداری')

@@ -10,6 +10,12 @@ class CreateIncome extends CreateRecord
 {
     protected static string $resource = IncomeResource::class;
 
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $data['company_id'] = auth()->user('company')->id;
+
+        return $data;
+    }
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');

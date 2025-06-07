@@ -1,5 +1,5 @@
 <?php
-namespace App\Filament\Resources\StoreResource\Pages;
+namespace App\Filament\Company\Resources\StoreResource\Pages;
 
 use Filament\Tables;
 use App\Models\Store;

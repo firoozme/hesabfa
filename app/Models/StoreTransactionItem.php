@@ -9,7 +9,7 @@ class StoreTransactionItem extends Model
 {
     
     use LogsActivity;
-    protected $fillable = ['store_transaction_id', 'product_id', 'quantity'];
+    protected $guarded = [];
 
     public function transaction()
     {
@@ -27,6 +27,7 @@ class StoreTransactionItem extends Model
     protected static function booted()
     {
         static::created(function ($item) {
+            // dd($item);
             $product = $item->product;
             $transaction = $item->transaction;
             $store = $transaction->store;

@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 class FinancialDocument extends Model
 {
     use LogsActivity;
-    protected $fillable = ['type','document_number', 'date', 'description', 'status'];
+    protected $guarded = [];
 
 
     public function transactions()

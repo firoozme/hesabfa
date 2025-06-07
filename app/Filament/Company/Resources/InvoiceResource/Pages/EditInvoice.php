@@ -24,8 +24,15 @@ class EditInvoice extends EditRecord
         return $data;
     }
 
-    // protected function afterSave(): void
-    // {
+    protected function afterSave(): void
+    {
+        $invoice = $this->record;
+
+        foreach ($invoice->items as $item) {
+            Product::where('id',$item->product_id)->update([
+                'purchase_price' => $item->unit_price
+            ]);
+        }
     //     $invoice = $this->record;
     //     $formData = $this->form->getState();
 
@@ -116,7 +123,7 @@ class EditInvoice extends EditRecord
     //             'description' => 'بدهی به تأمین‌کننده ' . $supplier->fullname,
     //         ]);
     //     }
-    // }
+    }
 
     protected function getRedirectUrl(): string
     {

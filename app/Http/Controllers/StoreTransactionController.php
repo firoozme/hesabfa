@@ -14,6 +14,7 @@ class StoreTransactionController extends Controller
 
         $transaction = StoreTransaction::with('items.product', 'store', 'destination')->findOrFail($id);
 
+
          // تنظیمات MPDF
          $config = [
             'mode' => 'utf-8',

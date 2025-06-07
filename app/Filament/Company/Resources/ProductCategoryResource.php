@@ -21,8 +21,8 @@ use App\Filament\Company\Resources\ProductCategoryResource\RelationManagers;
 class ProductCategoryResource extends Resource
 {
     protected static ?string $model = ProductCategory::class;
-    protected static ?string $modelLabel = 'دسته محصول';
-    protected static ?string $pluralModelLabel = 'دسته محصولات';
+    protected static ?string $modelLabel = 'گروه بندی محصول';
+    protected static ?string $pluralModelLabel = 'گروه بندی محصولات';
     protected static ?string $navigationGroup = 'کالا و خدمات';
 
     protected static ?string $navigationIcon = 'heroicon-o-folder-open';
@@ -38,18 +38,14 @@ class ProductCategoryResource extends Resource
 
                         Forms\Components\TextInput::make('title')
                             ->required()
-                            ->label('عنوان دسته')
+                            ->label('عنوان گروه ')
                             ->maxLength(255),
 
                         SelectTree::make('parent_id')
-                            ->label('دسته پدر')
-                            ->relationship(
-                                'category',
-                                'title',
-                                'parent_id',
-                            )
+                            ->label('زیرگروه')
+                            ->relationship(relationship: 'category', titleAttribute: 'title', parentAttribute: 'parent_id', modifyQueryUsing: fn (Builder $query) => $query->where('company_id', auth()->user('company')->id))
                             ->enableBranchNode()
-                            ->placeholder('انتخاب دسته')
+                            ->placeholder('انتخاب زیرگروه')
                             ->withCount()
                             ->searchable()
                             ->emptyLabel('بدون نتیجه'),
@@ -78,9 +74,10 @@ class ProductCategoryResource extends Resource
                     ->label('عنوان دسته')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('category.title')
-                    ->label('دسته پدر')
+                    ->label('گروه بندی')
                     ->numeric()
-                    ->sortable(),
+                    ->sortable()
+                    ->default('-'),
 
                 Tables\Columns\TextColumn::make('products_count')
                 ->counts('products')
@@ -103,7 +100,7 @@ class ProductCategoryResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\ProductsRelationManager::class,
         ];
     }
 
@@ -116,4 +113,8 @@ class ProductCategoryResource extends Resource
         ];
     }
     protected static ?int $navigationSort = 4;
+        public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->where('company_id', auth()->user('company')->id);
+    }
 }

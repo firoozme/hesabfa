@@ -12,8 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('cities', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+            $table->id(); // معادل bigint unsigned auto_increment
+            $table->unsignedBigInteger('user_id')->default(1);
+            $table->integer('parent')->default(0);
+            $table->string('title', 100);
+            $table->unsignedTinyInteger('sort')->default(1);
+            $table->softDeletes(); // ستون deleted_at
+            $table->timestamps(); // ستون‌های created_at و updated_at
         });
     }
 

@@ -8,6 +8,9 @@ use App\Models\Transfer;
 use App\Models\Transaction;
 use App\Models\CompanyBankAccount;
 use Filament\Resources\Pages\ManageRecords;
+use App\Filament\Exports\BankAccountExporter;
+use Filament\Actions\ExportAction;
+use Filament\Actions\Exports\Enums\ExportFormat;
 use App\Filament\Company\Resources\CompanyBankAccountResource;
 
 class ManageCompanyBankAccounts extends ManageRecords
@@ -17,6 +20,17 @@ class ManageCompanyBankAccounts extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
+            ExportAction::make()
+            ->label('خروجی اکسل')
+            ->color('success')
+            ->modalHeading('گرفتن خروجی ')
+            ->icon('heroicon-o-arrow-up-tray')
+            ->exporter(BankAccountExporter::class)
+            ->formats([
+                ExportFormat::Xlsx,
+            ])
+            ->fileName('حساب بانکی_'.verta())
+            ->fileDisk('public'),
             Actions\CreateAction::make()
             ->mutateFormDataUsing(function (array $data): array {
                 $data['company_id'] = auth('company')->id();

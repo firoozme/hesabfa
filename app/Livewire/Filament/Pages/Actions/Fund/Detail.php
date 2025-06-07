@@ -6,10 +6,13 @@ use App\Models\Fund;
 use Livewire\Component;
 use Filament\Tables\Table;
 use App\Models\Transaction;
+use Filament\Tables\Filters\Filter;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Contracts\HasTable;
 use Illuminate\Database\Eloquent\Model;
+use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Tables\Concerns\InteractsWithTable;
 
@@ -29,6 +32,7 @@ class Detail extends Component implements HasForms, HasTable
     public function table(Table $table): Table
     {
         return $table
+            ->emptyStateHeading('تراکنشی وجود ندارد')
             ->paginated(false)
             ->query(Transaction::query()->where('account_type','App\Models\Fund')->where('account_id', $this->fund->id)->latest())
             ->columns([
@@ -77,7 +81,62 @@ class Detail extends Component implements HasForms, HasTable
                     }),
             ])
             ->filters([
-                // ...
+                // فیلتر جستجو برای توضیحات
+                Filter::make('description')
+                    ->form([
+                        \Filament\Forms\Components\TextInput::make('description')
+                            ->label('جستجو در توضیحات')
+                            ->placeholder('جستجو...'),
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $data['description']
+                            ? $query->where('description', 'like', '%' . $data['description'] . '%')
+                            : $query;
+                    }),
+
+               
+
+                // فیلتر تاریخ تراکنش
+                Filter::make('created_at')
+                    ->form([
+                        DatePicker::make('from_date')
+                            ->label('از تاریخ')
+                            ->jalali()
+                            ->placeholder('انتخاب تاریخ'),
+                        DatePicker::make('to_date')
+                            ->jalali()
+                            ->label('تا تاریخ')
+                            ->placeholder('انتخاب تاریخ'),
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $query
+                            ->when($data['from_date'], fn($q) => $q->whereDate('created_at', '>=', $data['from_date']))
+                            ->when($data['to_date'], fn($q) => $q->whereDate('created_at', '<=', $data['to_date']));
+                    }),
+
+                // فیلتر برای بدهکار
+                TernaryFilter::make('debit')
+                    ->label('بدهکار')
+                    ->trueLabel('دارای بدهکار')
+                    ->falseLabel('بدون بدهکار')
+                    ->queries(
+                        true: fn($query) => $query->where('debit', '>', 0),
+                        false: fn($query) => $query->where('debit', 0),
+                        blank: fn($query) => $query
+                    ),
+
+                // فیلتر برای بستانکار
+                TernaryFilter::make('credit')
+                    ->label('بستانکار')
+                    ->trueLabel('دارای بستانکار')
+                    ->falseLabel('بدون بستانکار')
+                    ->queries(
+                        true: fn($query) => $query->where('credit', '>', 0),
+                        false: fn($query) => $query->where('credit', 0),
+                        blank: fn($query) => $query
+                    ),
+
+            
             ])
             ->actions([
 

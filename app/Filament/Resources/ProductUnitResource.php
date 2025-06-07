@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use stdClass;
 use Filament\Forms;
 use Filament\Tables;
 use Filament\Forms\Form;
@@ -9,8 +10,11 @@ use Filament\Tables\Table;
 use App\Models\ProductUnit;
 use Filament\Resources\Resource;
 use Illuminate\Support\Facades\Auth;
+use Filament\Tables\Contracts\HasTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rules\Unique;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Filament\Resources\ProductUnitResource\Pages;
@@ -45,15 +49,30 @@ class ProductUnitResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('#')
+                ->state(static function (HasTable $livewire, stdClass $rowLoop): string {
+                    return (string) (
+                        $rowLoop->iteration +
+                        ($livewire->getTableRecordsPerPage() * (
+                            $livewire->getTablePage() - 1
+                        ))
+                    );
+                }),
                 Tables\Columns\TextColumn::make('name')
                     ->label('عنوان واحد')
                     ->searchable()
                     ->sortable(),
+                    Tables\Columns\TextColumn::make('company.fullname')
+                    ->label('شرکت')
+                    ->searchable()
+                    ->sortable(),
             ])
         ->defaultSort('created_at','desc')
-            ->filters([
-                //
-            ])
+        ->filters([
+            SelectFilter::make('status')
+                ->label('شرکت')
+                ->relationship('company','fullname')
+        ], layout: FiltersLayout::AboveContent)
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),

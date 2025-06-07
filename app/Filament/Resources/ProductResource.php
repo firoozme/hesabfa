@@ -27,6 +27,10 @@ class ProductResource extends Resource
     protected static ?string $navigationGroup = 'کالا و خدمات';
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->where('company_id', auth()->user('company')->id);
+    }
     public static function form(Form $form): Form
     {
         return $form
@@ -53,7 +57,7 @@ class ProductResource extends Resource
                     ->label('عکس ')
                     ->extraImgAttributes(['loading' => 'lazy'])
                     ->checkFileExistence(false)
-                    ->default(fn(Product $record) => file_exists(asset('upload/' . $record->image))  ?  asset('upload/' . $record->image) : asset('upload/photo_placeholder.png'))
+                    // ->default(fn(Product $record) => file_exists(asset('upload/' . $record->image))  ?  asset('upload/' . $record->image) : asset('upload/photo_placeholder.png'))
                     ->disk('public'),
                 Tables\Columns\TextColumn::make('name')
                     ->label('عنوان')
