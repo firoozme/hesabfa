@@ -9,10 +9,13 @@ use App\Models\Product;
 use Filament\Forms\Set;
 use App\Models\ProductType;
 use App\Models\ProductUnit;
+use App\Models\StoreProduct;
 use App\Classes\ProductImport;
 use App\Models\ProductCategory;
 use App\Models\StoreTransaction;
 use Filament\Actions\ExportAction;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -33,7 +36,7 @@ class ManageProducts extends ManageRecords
         return [
             Actions\CreateAction::make()
                 ->mutateFormDataUsing(function (array $data): array {
-                    dd($data);
+
                     // دسترسی به selected_store_id از فرم
                     $formState       = $this->getMountedActionForm()->getState();
                     $selectedStoreId = $formState['selected_store_id'] ?? null;
@@ -47,6 +50,7 @@ class ManageProducts extends ManageRecords
                     $data['company_id']     = auth('company')->user()->id;
                     $data['selling_price']  = (float) str_replace(',', '', $data['selling_price']);
                     $data['purchase_price'] = (float) str_replace(',', '', $data['purchase_price']);
+                    ;
 
                     // حذف selected_store_id برای جلوگیری از ذخیره در جدول products
                     unset($data['selected_store_id']);
@@ -54,8 +58,19 @@ class ManageProducts extends ManageRecords
                     \Log::info('mutateFormDataUsing data:', $data);
                     return $data;
                 })
+
+
                 ->after(function ($record, array $data) {
-                    // دسترسی به selected_store_id از $data
+                    Log::warning(['after Product created', $record, $data]);
+                    DB::table('products')
+                    ->where('id', $record->id)
+                    ->update(['inventory' => $data['inventory']]);
+
+                    $record = Product::find($record->id);
+
+                    
+
+                        // دسترسی به selected_store_id از $data
                     if ($this->selectedStoreId) {
                         $defaultStore    = Store::where('is_default', true)->first();
                         $selectedStoreId = $this->selectedStoreId;
@@ -73,15 +88,20 @@ class ManageProducts extends ManageRecords
                             ]);
 
                             // ثبت آیتم تراکنش
-                            $transaction->items()->create([
+                            $transaction->items()->updateOrCreate([
                                 'product_id' => $record->id,
                                 'quantity'   => $record->inventory,
                             ]);
 
                             // به‌روزرسانی موجودی در جدول store_product
-                            $record->stores()->syncWithoutDetaching([
-                                $storeId => ['quantity' => $record->inventory],
-                            ]);
+                            // $record->stores()->syncWithoutDetaching([
+                            //     $storeId => ['quantity' => $record->inventory],
+                            // ]);
+                        //    StoreProduct::create([
+                        //         'store_id' => $storeId,
+                        //         'product_id' => $record->id,
+                        //         'quantity' => $record->inventory
+                        //     ]);
                         }
                     }
 
@@ -284,6 +304,7 @@ class ManageProducts extends ManageRecords
                         ),
                 ])
                 ->beforeImport(function (array $data, $livewire, $excelImportAction) {
+                    // dd($data);
                     $excelImportAction->additionalData([
                         'product_unit_id'     => $data['product_unit_id'],
                         'tax_id'              => $data['tax_id'],

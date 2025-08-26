@@ -4,10 +4,12 @@ namespace App\Filament\Company\Resources\StoreResource\Pages;
 use Filament\Tables;
 use App\Models\Store;
 use Filament\Actions;
+use App\Models\Product;
 use Filament\Forms\Get;
 use Filament\Tables\Table;
 use App\Models\StoreProduct;
 use Filament\Resources\Pages\Page;
+use Illuminate\Support\Facades\DB;
 use App\Models\StoreTransactionItem;
 use App\Filament\Company\Resources\StoreResource;
 
@@ -32,6 +34,8 @@ class StoreInventory extends Page implements Tables\Contracts\HasTable
         ->emptyStateHeading('انبار خالی است')
             ->query(
                 $this->record->products()->getQuery()
+                           
+
             )
             ->columns([
                 Tables\Columns\TextColumn::make('name')

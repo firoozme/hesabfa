@@ -17,6 +17,7 @@ class ListInvoices extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\CreateAction::make(),
             ExportAction::make()
                 ->label('خروجی اکسل')
                 ->color('success')
@@ -27,7 +28,6 @@ class ListInvoices extends ListRecords
                     ExportFormat::Xlsx,
                 ])
                 ->fileDisk('public'),
-            Actions\CreateAction::make(),
             // Action::make('return')
             // ->label('ایجاد برگشت خرید')
             // ->color('danger')

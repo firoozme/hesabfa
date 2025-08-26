@@ -384,6 +384,7 @@ class Receipts extends Page implements Tables\Contracts\HasTable
                                         })
                                         ->hidden(fn(Get $get) => $get('paymentable_type') === 'App\Models\Check' || !$get('paymentable_type'))
                                         ->required(fn(Get $get) => $get('paymentable_type') !== 'App\Models\Check'),
+                                        
                                     TextInput::make('amount')
                                         ->label('مبلغ پرداختی')
                                         ->suffix('ریال')

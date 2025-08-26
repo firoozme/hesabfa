@@ -27,7 +27,7 @@ class Product extends Model
     use LogsActivity;
     use SoftDeletes;
     protected $guarded = [];
-
+    protected static $updating = false; // فلگ برای جلوگیری از حلقه بی‌نهایت
     protected function casts(): array
     {
         return [
@@ -89,7 +89,7 @@ class Product extends Model
 
         // بررسی پس از ایجاد محصول
         static::created(function ($product) {
-
+            \Log::warning('Product created1: inventory'.$product);
             // if Import Porduct with Excel
             if ($product->method == 'import') {
                 $storeId   = $product->temp;
@@ -104,7 +104,7 @@ class Product extends Model
                     'store_id'         => $storeId,
                     'type'             => 'entry',
                     'date'             => Carbon::today(),
-                    'reference'        => 'INIT' . $productId,
+                    'reference'        => 'INIT-' . $productId,
                     'destination_type' => Product::class,
                     'destination_id'   => $productId,
                 ]);
@@ -117,11 +117,58 @@ class Product extends Model
 
                 ]);
 
+                
             }
+            \Log::warning('Product Inventory Set');
+            // به‌روزرسانی inventory
+            $product->updateInventory();
+
            
         });
         
-       
+        static::updated(function ($product) {
+            // اگر در حال به‌روزرسانی هستیم، از اجرای دوباره جلوگیری کن
+            if (static::$updating) {
+                return;
+            }
+
+            if ($product->isDirty('inventory')) {
+                static::$updating = true; // فعال کردن فلگ
+                Log::alert("Product Updated");
+                try {
+                    $quantity = $product->inventory;
+
+                    // به‌روزرسانی StoreTransactionItem
+                    $storeTransactionItem = StoreTransactionItem::where('product_id', $product->id)->first();
+                    if ($storeTransactionItem) {
+                        $storeTransactionItem->update([
+                            'quantity' => $quantity,
+                        ]);
+                    }
+                    // به‌روزرسانی StoreProduct
+                    $storeProduct = StoreProduct::where('product_id', $product->id)->first();
+                    
+                    if ($storeProduct) {
+                        $storeProduct->update([
+                            'quantity' => $quantity,
+                        ]);
+                    }
+                    // $product->update([
+                    //     'inventory' => $quantity
+                    // ]);
+                    Product::withoutEvents(function () use ($product, $quantity) {
+                        $product->update(['inventory' => $quantity]);
+                    });
+                } finally {
+                    static::$updating = false; // غیرفعال کردن فلگ
+                }
+            }
+
+            \Log::warning('Product Inventory Set');
+            // به‌روزرسانی inventory
+            $product->updateInventory();
+        });
+
         // بررسی قبل از حذف محصول
         static::deleting(function ($product) {
             // بررسی استفاده محصول در جدول invoice_items
@@ -183,8 +230,23 @@ class Product extends Model
 
     }
 
-    public function getInventoryAttribute(){
+    public function getRealInventoryAttribute(){
         $count = StoreProduct::where('product_id', $this->id)->sum('quantity');
         return $count;
+    }
+
+    public function updateInventory()
+    {
+        if (static::$updating) {
+            return;
+        }
+
+        static::$updating = true;
+        try {
+            $totalQuantity = $this->getRealInventoryAttribute();
+            $this->update(['inventory' => $totalQuantity]);
+        } finally {
+            static::$updating = false;
+        }
     }
 }

@@ -47,7 +47,7 @@ class StoreTransactionItem extends Model
                 $product->inventory -= $item->quantity;
             }
             $pivot->pivot->save();
-            $product->save();
+            $product->saveQuietly();
         });
 
         static::updated(function ($item) {

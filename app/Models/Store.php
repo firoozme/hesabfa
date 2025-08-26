@@ -27,7 +27,7 @@ class Store extends Model
     }
     public function storeTransactions()
     {
-        return $this->hasMany(StoreTransaction::class);
+        return $this->hasMany(StoreTransaction::class)->whereNull('deleted_at');
     }
     public function products()
     {
@@ -38,11 +38,12 @@ class Store extends Model
      // تعریف رابطه با StoreTransaction
      public function transactions()
      {
-         return $this->hasMany(StoreTransaction::class, 'store_id');
+         return $this->hasMany(StoreTransaction::class, 'store_id')->whereNull('deleted_at');
      }
  
      public function getStock($productId)
      {
+        // return 3000;
          $entries = $this->transactions()
              ->whereIn('type', ['entry','in'])
              ->whereHas('items', function ($query) use ($productId) {

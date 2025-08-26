@@ -145,27 +145,28 @@ class ProductResource extends Resource
                 TextInput::make('inventory')
                     ->label('موجودی اولیه')
                     ->numeric()
-                    ->default(0)
                     ->minValue(0)
                     ->reactive()
-                    // ->hidden(fn($context) =fموجودی> $context === 'edit')
+                    ->formatStateUsing(fn ($record) => $record->real_inventory ?? 0) // مثال
+                 ->debounce('500ms') // تأخیر 500 میلی‌ثانیه
+                    // ->hidden(fn($context) => $context === 'edit')
                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                        $defaultStore = \App\Models\Store::where('is_default', true)->first();
-                        $storesExist  = \App\Models\Store::exists();
-
+                        // $defaultStore = \App\Models\Store::where('is_default', true)->first();
+                        // $storesExist  = \App\Models\Store::exists();
+                    
                         if ($state > 0) {
                             $set('show_store_select', true);
                         } else {
                             $set('show_store_select', false);
                         }
+                        
                     }),
                 Select::make('selected_store_id')
                     ->label('انبار')
-                    // ->hidden(fn($context) => $context === 'edit')
+                    ->hidden(fn($context) => $context === 'edit')
                     ->options(fn() => \App\Models\Store::all()->where('company_id', auth()->user('company')->id)->pluck('title', 'id'))
-                    // ->visible(fn($get) => $get('show_store_select'))
-                    // ->required(fn($get) => $get('show_store_select')),
-                    ->required(),
+                    ->visible(fn($get) => $get('show_store_select'))
+                    ->required(fn($get) => $get('show_store_select')),
 
                 Forms\Components\Select::make('product_unit_id')
                     ->label('واحد شمارش')
@@ -423,6 +424,7 @@ class ProductResource extends Resource
                 JS)),
                 Tables\Columns\TextColumn::make('inventory')
                     ->label('موجودی')
+                    
                     ->sortable(),
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label('واحد شمارش'),
@@ -534,28 +536,7 @@ class ProductResource extends Resource
 
             ], layout: FiltersLayout::AboveContent)
             ->actions([
-                Tables\Actions\EditAction::make()
-                ->mutateFormDataUsing(function (array $data): array {
-                    dd($data);
-                    // array:16 [▼ // app\Filament\Company\Resources\ProductResource.php:538
-//   "image" => null
-//   "name" => "محصول 1"
-//   "barcode" => array:2 [▶]
-//   "selling_price" => 10000000.0
-//   "purchase_price" => 9000000.0
-//   "minimum_order" => 1
-//   "lead_time" => 1
-//   "reorder_point" => 1
-//   "sales_tax" => "0.00"
-//   "purchase_tax" => "0.00"
-//   "product_type_id" => 1
-//   "inventory" => "1000"
-//   "product_unit_id" => 13
-//   "tax_id" => 7
-//   "product_category_id" => 1
-//   "discount_id" => null
-// ]
-                }),
+                Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
 
             ])

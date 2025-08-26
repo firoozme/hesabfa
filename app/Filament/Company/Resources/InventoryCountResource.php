@@ -94,7 +94,7 @@ class InventoryCountResource extends Resource
                 TextColumn::make('counted_quantity')
                     ->label('تعداد شمرده‌شده')
                     ->sortable(),
-                TextColumn::make('product.inventory')
+                TextColumn::make('product.real_inventory')
                     ->label('موجودی فعلی')
                     ->sortable(),
                 TextColumn::make('verification.status')

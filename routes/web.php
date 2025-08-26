@@ -113,7 +113,6 @@ Route::get('/empty', function () {
             'person_person_type',
             'inventory_counts',
             'inventory_verifications',
-            'subscriptions',
     ];
 
     // غیرفعال کردن بررسی کلید خارجی (برای جلوگیری از خطای Constraint)

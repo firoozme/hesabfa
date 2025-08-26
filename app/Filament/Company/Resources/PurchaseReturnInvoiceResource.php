@@ -691,8 +691,8 @@ class PurchaseReturnInvoiceResource extends Resource
         return $data;
     }
     protected static ?int $navigationSort = 5;
-//     public static function shouldRegisterNavigation(): bool
-// {
-//     return false;
-// }
+    public static function shouldRegisterNavigation(): bool
+{
+    return false;
+}
 }

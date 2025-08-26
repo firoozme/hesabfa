@@ -52,13 +52,13 @@
         <tbody>
             @foreach ($invoice->items as $item)
                 <tr>
-                    <td>{{ $item->product->name }}</td>
-                    <td>{{ $item->product->unit->name }}</td>
-                    <td>{{ number_format($item->quantity) }}</td>
-                    <td>{{ number_format($item->unit_price).' ریال ' }}</td>
-                    <td>{{ $item->discount }} درصد</td>
-                    <td>{{ $item->tax }} درصد</td>
-                    <td>{{ number_format($item->total_price).' ریال ' }}</td>
+                    <td>{{ $item->product->name ?? 'بدون نام' }}</td>
+                    <td>{{ $item->product->unit->name ?? 'بدون واحد' }}</td>
+                    <td>{{ number_format($item->quantity ?? 0) }}</td>
+                    <td>{{ number_format($item->unit_price ?? 0).' ریال ' }}</td>
+                    <td>{{ $item->discount ?? 0 }} درصد</td>
+                    <td>{{ $item->tax ??  0}} درصد</td>
+                    <td>{{ number_format($item->total_price ?? 0).' ریال ' }}</td>
                 </tr>
             @endforeach
             <tfoot>

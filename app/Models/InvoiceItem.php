@@ -32,4 +32,14 @@ class InvoiceItem extends Model
         return $this->belongsTo(Product::class)->withTrashed();
 
     }
+
+    public function setTotalPriceAttribute($value)
+    {
+        // حذف کاماها از رشته ورودی
+        $cleanValue = str_replace(',', '', $value);
+
+        // تبدیل به عدد (ممکنه float باشه)، سپس رند کردن به عدد صحیح
+        $this->attributes['total_price'] = round(floatval($cleanValue));
+    }
+    
 }

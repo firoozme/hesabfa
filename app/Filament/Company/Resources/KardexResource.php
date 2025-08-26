@@ -59,6 +59,7 @@ class KardexResource extends Resource
                         'RET-SALE' => 'برگشت فروش',
                         'INV' => 'خرید',
                         'RET-INV' => 'برگشت خرید',
+                        'INIT' => 'موجودی اولیه',
                         default => $record->storeTransaction->reference,
                     })
                     ->sortable(query: function ($query, $direction) {
